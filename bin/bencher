@@ -1,0 +1,208 @@
+#!perl
+
+use 5.010001;
+use strict;
+use warnings;
+use Log::Any '$log';
+
+use Perinci::CmdLine::Any;
+
+our %SPEC;
+
+$SPEC{bencher} = {
+    v => 1.1,
+    summary => 'A benchmark framework',
+    args => {
+        scenario_file => {
+            summary => 'Load a scenario from a Perl file',
+            description => <<'_',
+
+Perl file will be do()'ed and the last expression should be a hash containing
+the scenario specification.
+
+_
+            schema => 'str*',
+            cmdline_aliases => {f=>{}},
+        },
+        scenario_module => {
+            summary => 'Load a scenario from a Bencher::Scenario:: Perl module',
+            description => <<'_',
+
+Will try to load module `Bencher::Scenario::<NAME>` and expect to find a package
+variable in the module called `$scenario` which should be a hashref containing
+the scenario specification.
+
+_
+            schema => ['str*', match=>qr/\A\w+(::\w+)*\z/],
+            cmdline_aliases => {m=>{}},
+        },
+        participants => {
+            'summary' => 'Add participants',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'hash*'],
+            cmdline_aliases => {
+                p => {
+                    summary => 'Add a participant',
+                    code => sub {
+                        require JSON;
+
+                        my $args = shift;
+                        push @{ $args->{participants} },
+                            JSON::decode_json($_[0]);
+                    },
+                }
+            },
+        },
+        datasets => {
+            summary => 'Add datasets',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'hash*'],
+            cmdline_aliases => {
+                d => {
+                    summary => 'Add a dataset',
+                    code => sub {
+                        require JSON;
+
+                        my $args = shift;
+                        push @{ $args->{datasets} },
+                            JSON::decode_json($_[0]);
+                    },
+                },
+            },
+        },
+        action => {
+            schema => ['str*', {
+                in=>[qw/
+                           bench
+                           show-scenario
+                           list-items
+                           list-modules
+                           list-functions
+                       /]
+            }],
+            default => 'bench',
+            cmdline_aliases => { a=>{} },
+        },
+        module_startup => {
+            schema => ['bool*', is=>1],
+            summary => 'Benchmark module startup',
+        },
+
+        # XXX include_item
+        # XXX exclude_item
+        # XXX include_participant
+        # XXX exclude_participant
+        # XXX include_module
+        # XXX exclude_module
+    },
+};
+sub bencher {
+    use experimental 'smartmatch';
+
+    my %args = @_;
+
+    my $action = $args{action};
+
+    my $scenario;
+    if (defined $args{scenario_file}) {
+        $scenario = do $args{scenario_file};
+    } elsif (defined $args{scenario_module}) {
+        my $m = "Bencher::Scenario::$args{scenario_module}";
+        my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
+        require $mp;
+        no strict 'refs';
+        $scenario = ${"$m\::scenario"};
+    } else {
+        $scenario = {
+            participants => [],
+        };
+    }
+
+    if ($args{participants}) {
+        for (@{ $args{participants} }) {
+            push @{ $scenario->{participants} }, $_;
+        }
+    }
+    if ($args{datasets}) {
+        $scenario->{datasets} //= [];
+        for (@{ $args{datasets} }) {
+            push @{ $scenario->{datasets} }, $_;
+        }
+    }
+
+    if ($action eq 'show-scenario') {
+        return [200, "OK", $scenario];
+    }
+
+    # generate benchmark items from
+    my @items;
+    my @modules;
+    my @included_participants;
+    my $collect_modules = $args{module_startup} || $action eq 'list-modules';
+    my $i = 0;
+    for my $p (@{ $scenario->{participants} }) {
+        $i++;
+        my $type = $p->{type} // 'perl_code';
+        my $included;
+        if ($collect_modules) {
+            if ($type eq 'perl_code') {
+                if ($p->{module}) {
+                    $included++;
+                    unless ($p->{module} ~~ @modules) {
+                        push @modules, $p->{module};
+                        push @items, 1;
+                    }
+                } elsif ($p->{fcall_template} &&
+                             $p->{fcall_template} =~ /\A(\w+(?:::\w+)*)::\w+/) {
+                    $included++;
+                    unless ($1 ~~ @modules) {
+                        push @modules, $1;
+                        push @items, 1;
+                    }
+                }
+            }
+        } else {
+        }
+
+        if ($included) {
+            push @included_participants, $p;
+        } else {
+            $log->warnf("Skipped participant #%d (%s)", $i, $p);
+        }
+    }
+
+    if ($action eq 'list-modules') {
+        return [200, "OK", \@modules];
+    }
+
+    if ($action eq 'list-items') {
+        return [200, "OK", \@items];
+    }
+
+    [200,"OK"];
+}
+
+Perinci::CmdLine::Any->new(
+    url => '/main/bencher',
+    log => 1,
+)->run;
+
+# ABSTRACT: A benchmark framework (CLI)
+# PODNAME:
+
+=head1 SYNOPSIS
+
+Run a scenario file:
+
+ % bencher -f scenario.pl
+
+Run a scenario from C<Bencher::Scenario::Foo> module:
+
+ % bencher -m Foo
+
+Run by adding participants etc on the command-line:
+
+ % bencher -p '{"fcall_template":"Bar::func"}'
+
+
+=head1 DESCRIPTION
