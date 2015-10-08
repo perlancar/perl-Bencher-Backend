@@ -157,7 +157,17 @@ _
             schema => 'bool*',
             cmdline_aliases => {l=>{}},
         },
-
+        time_unit => {
+            schema => ['str*', in=>[qw/s ms/]],
+            default => 's',
+            cmdline_aliases => {
+                ms => {
+                    is_flag => 1,
+                    code => sub { $_[0]{time_unit} = 'ms' },
+                    summary => 'Alias for --time-unit=ms',
+                },
+            },
+        },
         # XXX include_item
         # XXX exclude_item
         # XXX include_participant
@@ -365,8 +375,8 @@ sub bencher {
                 my $res = $args{result};
                 for my $i (reverse 1..$#{$res}) {
                     $res->[$i]{time} -= $res->[0]{time};
-                    $res->[$i]{time} = "+$res->[$i]{time}";
                 }
+                shift @$res;
             };
         } else {
             return [412, "Please load a scenario (-m, -f) or ".
@@ -381,10 +391,12 @@ sub bencher {
         if (@datasets) {
             push @permute, "dataset", [0..$#{$parsed->{datasets}}];
         }
+        $log->debugf("permute: %s", \@permute);
 
         my $iter = Permute::Named::Iter::permute_named_iter(@permute);
         my $i = -1;
         while (my $h = $iter->()) {
+            $log->tracef("iter returns: %s", $h);
             $i++;
             my $item_name;
             {
@@ -424,7 +436,7 @@ sub bencher {
                 };
             } elsif ($p->{type} eq 'perl_code') {
                 my $ds;
-                $ds = $datasets[$h->{dataset}] if $h->{dataset};
+                $ds = $datasets[$h->{dataset}] if defined($h->{dataset});
                 if ($p->{code}) {
                     if ($ds) {
                         if ($ds->{argv}) {
@@ -444,7 +456,10 @@ sub bencher {
                     } elsif ($ds->{argv}) {
                         $template_vars = { map {$_=>$ds->{argv}[$_]}
                                                @{ $ds->{argv} } };
+                    } else {
+                        warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                     }
+
                     if ($template_vars) {
                         $template =~ s/\<(\w+)\>/dmp($template_vars->{$1})/eg;
                     }
@@ -506,16 +521,25 @@ sub bencher {
                 seq     => $seq,
                 name    => $it->{name},
                 time    => $tres->{$seq}{result}{num},
-                reps    => 1 / $tres->{$seq}{result}{num},
+                rate    => 1 / $tres->{$seq}{result}{num},
                 samples => $tres->{$seq}{result}{_dbr_nsamples},
                 errors  => $tres->{$seq}{result}{errors}[0],
             };
         }
+
         if ($parsed->{after_bench}) {
             $parsed->{after_bench}->(result => \@res);
         }
+
+        @res = sort {$b->{time} <=> $a->{time}} @res;
+
+        if ($args{time_unit} eq 'ms') {
+            for my $res (@res) {
+                $res->{time} = sprintf("%10.4fms", $res->{time}*1000);
+            }
+        }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name time reps samples errors/];
+        $resmeta{'table.fields'} = [qw/seq name time rate samples errors/];
         return [200, "OK", \@res, \%resmeta];
     }
 
