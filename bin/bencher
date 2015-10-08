@@ -257,6 +257,8 @@ sub bencher {
                     if ($p->{function}) {
                         $p->{name} = ($p->{module} ? "$p->{module}::" : "").
                             $p->{function};
+                    } elsif ($p->{module}) {
+                        $p->{name} = $p->{module};
                     }
                 }
             }
