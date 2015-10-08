@@ -42,7 +42,7 @@ on.
 =back
 
 
-=head2 SEE ALSO
+=head1 SEE ALSO
 
 B<BenchmarkAnything>. There are lot of overlaps of goals between Bencher and
 this project. I hope to reuse or interoperate parts of BenchmarkAnything, e.g.
