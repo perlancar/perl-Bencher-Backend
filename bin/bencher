@@ -5,9 +5,29 @@ use strict;
 use warnings;
 use Log::Any '$log';
 
+use Data::Dmp;
+use List::MoreUtils qw(uniq);
 use Perinci::CmdLine::Any;
 
 our %SPEC;
+
+sub _uniquify_names {
+    my $recs = shift;
+
+    my $names = [map {$_->{name}} @{ $recs }];
+    if ((grep {!defined} @$names) || scalar(@{[ uniq(@$names) ]}) < @$names) {
+        my $i = -1;
+        my %seen;
+        for my $rec (@$recs) {
+            $i++;
+            $rec->{name} //= '';
+            if ($seen{ $rec->{name} }++ || $rec->{name} eq '') {
+                $rec->{name} .= (length($rec->{name}) ? " " : "") . "#$i";
+                # XXX actually still doesn't guarantee unique name
+            }
+        }
+    }
+}
 
 $SPEC{bencher} = {
     v => 1.1,
@@ -35,6 +55,12 @@ the scenario specification.
 _
             schema => ['str*', match=>qr/\A\w+(::\w+)*\z/],
             cmdline_aliases => {m=>{}},
+            completion => sub {
+                require Complete::Module;
+                my %args = @_;
+                Complete::Module::complete_module(
+                    word=>$args{word}, ns_prefix=>'Bencher::Scenario');
+            },
         },
         participants => {
             'summary' => 'Add participants',
@@ -73,19 +99,63 @@ _
         action => {
             schema => ['str*', {
                 in=>[qw/
-                           bench
+                           list-scenario-modules
                            show-scenario
+                           list-participants
+                           list-participant-modules
+                           list-datasets
                            list-items
-                           list-modules
-                           list-functions
+                           bench
                        /]
+                    # list-functions
             }],
             default => 'bench',
-            cmdline_aliases => { a=>{} },
+            cmdline_aliases => {
+                a => {},
+                list_scenario_modules => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-scenario-modules',
+                    code => sub { $_[0]{action} = 'list-scenario-modules' },
+                },
+                L => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-scenario-modules',
+                    code => sub { $_[0]{action} = 'list-scenario-modules' },
+                },
+                show_scenario => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a show-scenario',
+                    code => sub { $_[0]{action} = 'show-scenario' },
+                },
+                list_participants => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-participants',
+                    code => sub { $_[0]{action} = 'list-participants' },
+                },
+                list_participant_modules => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-participant-modules',
+                    code => sub { $_[0]{action} = 'list-participant-modules' },
+                },
+                list_datasets => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-datasets',
+                    code => sub { $_[0]{action} = 'list-datasets' },
+                },
+                list_items => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-items',
+                    code => sub { $_[0]{action} = 'list-items' },
+                },
+            },
         },
         module_startup => {
             schema => ['bool*', is=>1],
             summary => 'Benchmark module startup',
+        },
+        detail => {
+            schema => 'bool*',
+            cmdline_aliases => {l=>{}},
         },
 
         # XXX include_item
@@ -102,6 +172,14 @@ sub bencher {
     my %args = @_;
 
     my $action = $args{action};
+
+    if ($action eq 'list-scenario-modules') {
+        require PERLANCAR::Module::List;
+        my $mods = PERLANCAR::Module::List::list_modules(
+            'Bencher::Scenario::', {list_modules=>1});
+        return [200, "OK",
+                [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
+    }
 
     my $scenario;
     if (defined $args{scenario_file}) {
@@ -134,52 +212,314 @@ sub bencher {
         return [200, "OK", $scenario];
     }
 
-    # generate benchmark items from
-    my @items;
-    my @modules;
-    my @included_participants;
-    my $collect_modules = $args{module_startup} || $action eq 'list-modules';
-    my $i = 0;
-    for my $p (@{ $scenario->{participants} }) {
-        $i++;
-        my $type = $p->{type} // 'perl_code';
-        my $included;
-        if ($collect_modules) {
-            if ($type eq 'perl_code') {
-                if ($p->{module}) {
-                    $included++;
-                    unless ($p->{module} ~~ @modules) {
-                        push @modules, $p->{module};
-                        push @items, 1;
-                    }
-                } elsif ($p->{fcall_template} &&
-                             $p->{fcall_template} =~ /\A(\w+(?:::\w+)*)::\w+/) {
-                    $included++;
-                    unless ($1 ~~ @modules) {
-                        push @modules, $1;
-                        push @items, 1;
+    # parse scenario (extract module names, ...)
+    my $parsed = {};
+    {
+        $parsed->{participants} = [];
+        $parsed->{modules} = [];
+        my $i = -1;
+        for my $p0 (@{ $scenario->{participants} }) {
+            $i++;
+            my $p = { %$p0, seq=>$i };
+            $p->{type} //= 'perl_code';
+            if ($p->{fcall_template}) {
+                if ($p->{fcall_template} =~ /\A
+                                             (\w+(?:::\w+)*)
+                                             (::|->)
+                                             (\w+)/x) {
+                    $p->{module}   = $1;
+                    $p->{function} = $3;
+                }
+            }
+
+            if ($p->{module}) {
+                push @{ $parsed->{modules} }, $p->{module}
+                    unless $p->{module} ~~ @{ $parsed->{modules} };
+            }
+
+            # try to come up with a default name for the participant
+            unless (defined($p->{name})) {
+                if ($p->{type} eq 'command') {
+                    my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
+                        join(" ", $p->{cmdline}) : $p->{cmdline};
+                    $p->{name} = substr($cmdline, 0, 12);
+                } elsif ($p->{type} eq 'perl_code') {
+                    if ($p->{function}) {
+                        $p->{name} = ($p->{module} ? "$p->{module}::" : "").
+                            $p->{function};
                     }
                 }
             }
-        } else {
-        }
 
-        if ($included) {
-            push @included_participants, $p;
-        } else {
-            $log->warnf("Skipped participant #%d (%s)", $i, $p);
-        }
+            push @{ $parsed->{participants} }, $p;
+        } # for each participant
+
+        if ($scenario->{datasets}) {
+            $parsed->{datasets} = [];
+            my $i = -1;
+            for my $ds0 (@{ $scenario->{datasets} }) {
+                $i++;
+                my $ds = { %$ds0, seq=>$i };
+
+                # try to come up with a default name for the dataset
+                unless (defined($ds->{name})) {
+                    if ($ds->{args}) {
+                        $ds->{name} = substr(dmp($ds->{args}), 0, 14);
+                    } elsif ($ds->{argv}) {
+                        $ds->{name} = substr(dmp($ds->{argv}), 0, 14);
+                    }
+                }
+                push @{ $parsed->{datasets} }, $ds;
+            }
+        } # for each dataset
+
+        _uniquify_names($parsed->{participants});
+        _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
     }
 
-    if ($action eq 'list-modules') {
-        return [200, "OK", \@modules];
+    if ($action eq 'list-datasets') {
+        return [200, "OK", undef] unless $parsed->{datasets};
+        my @res;
+        for my $ds (@{ $parsed->{datasets} }) {
+            if ($args{detail}) {
+                push @res, {
+                    seq      => $ds->{seq},
+                    name     => $ds->{name},
+                };
+            } else {
+                push @res, $ds->{name};
+            }
+        }
+        my %resmeta;
+        $resmeta{'table.fields'} = [qw/seq name/]
+            if $args{detail};
+        return [200, "OK", \@res, \%resmeta];
     }
+
+    if ($action eq 'list-participant-modules') {
+        return [200, "OK", $parsed->{modules}];
+    }
+
+    if ($action eq 'list-participants') {
+        my @res;
+        for my $p (@{ $parsed->{participants} }) {
+            if ($args{detail}) {
+                push @res, {
+                    seq      => $p->{seq},
+                    type     => $p->{type},
+                    name     => $p->{name},
+                    function => $p->{function},
+                    module   => $p->{module},
+                };
+            } else {
+                push @res, $p->{name};
+            }
+        }
+        my %resmeta;
+        $resmeta{'table.fields'} = [qw/seq type name function module/]
+            if $args{detail};
+        return [200, "OK", \@res, \%resmeta];
+    }
+
+    # generate benchmark items from participants
+    {
+        require Permute::Named::Iter;
+
+        $parsed->{items} = [];
+        my @permute;
+
+        # XXX allow permutation of perl path
+        # XXX allow permutation of module path
+
+        my @participants;
+        my @datasets;
+
+        if ($args{module_startup}) {
+            return [412, "There are no modules to benchmark the startup of"]
+                unless @{$parsed->{modules}};
+
+            # push perl as base-line
+            {
+                push @participants, {
+                    seq  => 0,
+                    name => "loading perl (baseline)",
+                    type => 'command',
+                    cmdline => [$^X, "-e1"],
+                };
+
+                my $i = 0;
+                for my $mod (@{ $parsed->{modules} }) {
+                    $i++;
+                    push @participants, {
+                        seq  => $i,
+                        name => $mod,
+                        type => 'command',
+                        cmdline => [$^X, "-M$mod", "-e1"],
+                    };
+                }
+            }
+
+            # postprocess result
+            $parsed->{after_bench} = sub {
+                my %args = @_;
+                my $res = $args{result};
+                for my $i (reverse 1..$#{$res}) {
+                    $res->[$i]{time} -= $res->[0]{time};
+                    $res->[$i]{time} = "+$res->[$i]{time}";
+                }
+            };
+        } else {
+            return [412, "Please load a scenario (-m, -f) or ".
+                        "specify at least one participant (-p)"]
+                unless @{$parsed->{participants}};
+            @participants = @{ $parsed->{participants} };
+            @datasets = @{ $parsed->{datasets} } if $parsed->{datasets};
+        }
+
+        push @permute, "participant", [0..$#participants];
+
+        if (@datasets) {
+            push @permute, "dataset", [0..$#{$parsed->{datasets}}];
+        }
+
+        my $iter = Permute::Named::Iter::permute_named_iter(@permute);
+        my $i = -1;
+        while (my $h = $iter->()) {
+            $i++;
+            my $item_name;
+            {
+                # convert participant's & dataset index to name temporarily, for
+                # nicer item name
+                my %h = %$h;
+                $h{participant} = $participants[$h{participant}]{name};
+                $h{dataset} = $datasets[$h{dataset}]{name}
+                    if exists $h{dataset};
+                my @k = keys %h;
+                if (@k == 1) {
+                    $item_name = $h{$k[0]};
+                } else {
+                    $item_name = dmp(\%h);
+                }
+            }
+
+            my $p = $participants[$h->{participant}];
+
+            my $code;
+            if ($p->{type} eq 'command') {
+                my @cmd;
+                my $shell;
+                if (ref($p->{cmdline}) eq 'ARRAY') {
+                    @cmd = @{ $p->{cmdline} };
+                    $shell = 0;
+                } else {
+                    @cmd = ($p->{cmdline});
+                    $shell = 1;
+                }
+                $code = sub {
+                    if ($shell) {
+                        system $cmd[0];
+                    } else {
+                        system {$cmd[0]} @cmd;
+                    }
+                };
+            } elsif ($p->{type} eq 'perl_code') {
+                my $ds;
+                $ds = $datasets[$h->{dataset}] if $h->{dataset};
+                if ($p->{code}) {
+                    if ($ds) {
+                        if ($ds->{argv}) {
+                            $code = sub { $p->{code}->(@{$ds->{argv}}) };
+                        } elsif ($ds->{args}) {
+                            $code = sub { $p->{code}->(%{$ds->{args}}) };
+                        } else {
+                            return [400, "Participant #$p->{seq}: No argv/args supplied for code"];
+                        }
+                    } else {
+                        $code = $p->{code};
+                    }
+                } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
+                    my $template_vars;
+                    if ($ds->{args}) {
+                        $template_vars = $ds->{args};
+                    } elsif ($ds->{argv}) {
+                        $template_vars = { map {$_=>$ds->{argv}[$_]}
+                                               @{ $ds->{argv} } };
+                    }
+                    if ($template_vars) {
+                        $template =~ s/\<(\w+)\>/dmp($template_vars->{$1})/eg;
+                    }
+                    my $code_str = "sub { $template }";
+                    $log->debugf("Item #%d: code=%s", $i, $code_str);
+                    $code = eval $code_str;
+                    return [400, "Item #$i: code compile error: $@ (code: $code_str)"] if $@;
+                }
+            } else {
+                return [400, "Unknown participant type '$p->{type}'"];
+            }
+
+            push @{ $parsed->{items} }, {
+                seq  => $i,
+                name => $item_name,
+                code => $code,
+            };
+        }
+
+    } # generate benchmark items
 
     if ($action eq 'list-items') {
-        return [200, "OK", \@items];
+        my @res;
+        for my $it (@{ $parsed->{items} }) {
+            if ($args{detail}) {
+                push @res, {
+                    seq      => $it->{seq},
+                    name     => $it->{name},
+                };
+            } else {
+                push @res, $it->{name};
+            }
+        }
+        my %resmeta;
+        $resmeta{'table.fields'} = [qw/seq name/]
+            if $args{detail};
+        return [200, "OK", \@res, \%resmeta];
     }
 
-    [200,"OK"];
+    if ($action eq 'bench') {
+        require Benchmark::Dumb;
+        require Module::Load;
+
+        for my $mod (@{ $parsed->{modules} }) {
+            Module::Load::load($mod);
+        }
+
+        my $tres = Benchmark::Dumb::_timethese_guts(
+            0,
+            {
+                map { $_->{seq} => $_->{code} } @{ $parsed->{items} }
+            },
+            "silent",
+        );
+        my @res;
+        for my $seq (sort {$a<=>$b} keys %$tres) {
+            my $it = $parsed->{items}[$seq];
+            push @res, {
+                seq     => $seq,
+                name    => $it->{name},
+                time    => $tres->{$seq}{result}{num},
+                reps    => 1 / $tres->{$seq}{result}{num},
+                samples => $tres->{$seq}{result}{_dbr_nsamples},
+                errors  => $tres->{$seq}{result}{errors}[0],
+            };
+        }
+        if ($parsed->{after_bench}) {
+            $parsed->{after_bench}->(result => \@res);
+        }
+        my %resmeta;
+        $resmeta{'table.fields'} = [qw/seq name time reps samples errors/];
+        return [200, "OK", \@res, \%resmeta];
+    }
+
+    [304,"No action"];
 }
 
 Perinci::CmdLine::Any->new(
@@ -192,17 +532,40 @@ Perinci::CmdLine::Any->new(
 
 =head1 SYNOPSIS
 
-Run a scenario file:
+List all scenario modules (Bencher::Scenario::*):
+
+ % bencher --list-scenario-modules
+ % bencher -L
+
+Run benchmark from a scenario module:
+
+ % bencher -m Example
+
+Run benchmark from a scenario file:
 
  % bencher -f scenario.pl
 
-Run a scenario from C<Bencher::Scenario::Foo> module:
-
- % bencher -m Foo
-
-Run by adding participants etc on the command-line:
+Add participants etc from the command-line instead of using a scenario
+file/module:
 
  % bencher -p '{"fcall_template":"Bar::func"}'
 
+Run module startup overhead benchmark instead of the normal run:
+
+ % bencher -m Example --module-startup
+
+List participants instead of running benchmark:
+
+ % bencher ... --list-participants
+
+List benchmark items instead of running benchmark:
+
+ % bencher ... --list-items
+
 
 =head1 DESCRIPTION
+
+
+=head1 SEE ALSO
+
+L<Bencher>
