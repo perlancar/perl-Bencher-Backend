@@ -539,7 +539,7 @@ sub bencher {
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name time rate samples errors/];
+        $resmeta{'table.fields'} = [qw/seq name rate time samples errors/];
         return [200, "OK", \@res, \%resmeta];
     }
 
