@@ -1,5 +1,20 @@
 Revision history for Bencher
 
+0.02    2015-10-09 (PERLANCAR)
+
+	- Add several --include-* and --exlude-* options to filter
+	  modules/participants/datasets/items.
+
+	- Add --on-failure option (as well as scenario's on_failure property) to
+          be able to skip failed items.
+
+	- Add example scenario module: Example::CommandNotFound.
+
+	- [doc] Add section about scenario module.
+
+        - Add a few tweaks and fixes.
+
+
 0.01    2015-10-08 (PERLANCAR)
 
         - First release.
