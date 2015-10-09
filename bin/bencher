@@ -707,7 +707,7 @@ sub bencher {
     if ($action eq 'list-scenario-modules') {
         require PERLANCAR::Module::List;
         my $mods = PERLANCAR::Module::List::list_modules(
-            'Bencher::Scenario::', {list_modules=>1});
+            'Bencher::Scenario::', {list_modules=>1, recurse=>1});
         return [200, "OK",
                 [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
     }
