@@ -42,9 +42,66 @@ on.
 =back
 
 
+=head1 SCENARIO
+
+The core data structure that you need to prepare is the B<scenario>. It is a
+L<DefHash> (i.e. just a regular Perl hash), the two most important keys of this
+hash are: B<participants> and B<datasets>.
+
+An example scenario (from C<Bench::Scenario::Example>):
+
+ package Bencher::Scenario::Example;
+ our $scenario = {
+     participants => [
+         {fcall_template => q[Text::Wrap::wrap('', '', <text>)]},
+     ],
+     datasets => [
+         { name=>"foobar x100",   args => {text=>"foobar " x 100} },
+         { name=>"foobar x1000",  args => {text=>"foobar " x 1000} },
+         { name=>"foobar x10000", args => {text=>"foobar " x 10000} },
+     ],
+ };
+ 1;
+
+B<participants> (array) lists Perl code (or external command) that we want to
+benchmark. Instead of just list of coderefs like what L<Benchmark> expects, you
+can use C<fcall_template> instead. It is a string containing a function call
+code. From this value, Bencher can extract the name of the module and function
+used (and can help you load the modules, benchmark startup overhead of all
+involved modules, etc). It can also contain variables enclosed in angle
+brackets, like C<< <text> >> which will be replaced with actual data/value
+later.
+
+You can also add C<name> key to a participant so you can refer to it more easily
+later, e.g.:
+
+ participants => [
+     {name=>'pp', fcall_template=>'List::MoreUtils::PP::uniq(@{<array>})'},
+     {name=>'xs', fcall_template=>'List::MoreUtils::XS::uniq(@{<array>})'},
+ ],
+
+Aside from C<fcall_template>, you can also use C<code_template> (a string
+containing arbitrary code) or C<code> (a subroutine reference, just like what
+you would provide to the Benchmark module).
+
+Or, if you are benchmarking commands, you specify C<cmdline> (array or strings,
+or strings) instead. An array cmdline will not use shell, while the string
+version will use shell. See L<Bencher::Scenario::Interpreters>.
+
+B<datasets> (array) lists the function inputs (or command-line arguments). You
+can C<name> each dataset too, to be able to refer to it more easily.
+
+You can instruct the B<bencher> CLI to filter wanted/unwanted modules,
+participants, or datasets before benchmarking.
+
+
 =head1 SEE ALSO
 
 B<BenchmarkAnything>. There are lot of overlaps of goals between Bencher and
 this project. I hope to reuse or interoperate parts of BenchmarkAnything, e.g.
 storing Bencher results in a BenchmarkAnything storage backend, sending Bencher
 results to a BenchmarkAnything HTTP server, and so on.
+
+L<Benchmark>, L<Benchmark::Dumb> (L<Dumbbench>)
+
+C<Bencher::Scenario::*> for examples of scenarios.
