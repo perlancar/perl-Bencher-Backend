@@ -127,7 +127,13 @@ sub _parse_scenario {
     for my $p0 (@{ $unparsed->{participants} }) {
         $i++;
         my $p = { %$p0, seq=>$i };
-        $p->{type} //= 'perl_code';
+        $p->{type} //= do {
+            if ($p->{cmdline}) {
+                'command';
+            } else {
+                'perl_code';
+            }
+        };
         if ($p->{fcall_template}) {
             if ($p->{fcall_template} =~ /\A
                                          (\w+(?:::\w+)*)
