@@ -85,7 +85,7 @@ sub _get_scenario {
     if (defined $pargs->{scenario_file}) {
         $scenario = do $pargs->{scenario_file};
     } elsif (defined $pargs->{scenario_module}) {
-        my $m = "Bencher::Scenario::$pargs->{scenario_module}";
+        my $m = "Bencher::Scenario::$pargs->{scenario_module}"; $m =~ s!/!::!g;
         my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
         require $mp;
         no strict 'refs';
@@ -515,7 +515,7 @@ variable in the module called `$scenario` which should be a hashref containing
 the scenario specification.
 
 _
-            schema => ['str*', match=>qr/\A\w+(::\w+)*\z/],
+            schema => ['str*', match=>qr!\A\w+((?:::|/)\w+)*\z!],
             cmdline_aliases => {m=>{}},
             completion => sub {
                 require Complete::Module;
