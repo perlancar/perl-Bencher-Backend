@@ -32,6 +32,142 @@ sub _uniquify_names {
     }
 }
 
+sub _get_scenario {
+    my %args = @_;
+
+    my $scenario;
+    if (defined $args{scenario_file}) {
+        $scenario = do $args{scenario_file};
+    } elsif (defined $args{scenario_module}) {
+        my $m = "Bencher::Scenario::$args{scenario_module}";
+        my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
+        require $mp;
+        no strict 'refs';
+        $scenario = ${"$m\::scenario"};
+    } else {
+        $scenario = {
+            participants => [],
+        };
+    }
+
+    if ($args{participants}) {
+        for (@{ $args{participants} }) {
+            push @{ $scenario->{participants} }, $_;
+        }
+    }
+    if ($args{datasets}) {
+        $scenario->{datasets} //= [];
+        for (@{ $args{datasets} }) {
+            push @{ $scenario->{datasets} }, $_;
+        }
+    }
+    $scenario;
+}
+
+# parse scenario (extract module names, ...)
+sub _parse_scenario {
+    use experimental 'smartmatch';
+
+    my %args = @_;
+
+    my $unparsed = $args{scenario};
+    my $parsed = {};
+
+    $parsed->{participants} = [];
+    $parsed->{modules} = [];
+    my $i = -1;
+    for my $p0 (@{ $unparsed->{participants} }) {
+        $i++;
+        my $p = { %$p0, seq=>$i };
+        $p->{type} //= 'perl_code';
+        if ($p->{fcall_template}) {
+            if ($p->{fcall_template} =~ /\A
+                                         (\w+(?:::\w+)*)
+                                         (::|->)
+                                         (\w+)/x) {
+                $p->{module}   = $1;
+                $p->{function} = $3;
+            }
+        }
+
+        if ($p->{module}) {
+            push @{ $parsed->{modules} }, $p->{module}
+                unless $p->{module} ~~ @{ $parsed->{modules} };
+        }
+
+        # try to come up with a default name for the participant
+        unless (defined($p->{name})) {
+            if ($p->{type} eq 'command') {
+                my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
+                    join(" ", $p->{cmdline}) : $p->{cmdline};
+                $p->{name} = substr($cmdline, 0, 12);
+            } elsif ($p->{type} eq 'perl_code') {
+                if ($p->{function}) {
+                    $p->{name} = ($p->{module} ? "$p->{module}::" : "").
+                        $p->{function};
+                } elsif ($p->{module}) {
+                    $p->{name} = $p->{module};
+                }
+            }
+        }
+
+        push @{ $parsed->{participants} }, $p;
+    } # for each participant
+
+    if ($unparsed->{datasets}) {
+        $parsed->{datasets} = [];
+        my $i = -1;
+        for my $ds0 (@{ $unparsed->{datasets} }) {
+            $i++;
+            my $ds = { %$ds0, seq=>$i };
+
+            # try to come up with a default name for the dataset
+            unless (defined($ds->{name})) {
+                if ($ds->{args}) {
+                    $ds->{name} = substr(dmp($ds->{args}), 0, 14);
+                } elsif ($ds->{argv}) {
+                    $ds->{name} = substr(dmp($ds->{argv}), 0, 14);
+                }
+            }
+            push @{ $parsed->{datasets} }, $ds;
+        }
+    } # for each dataset
+
+    _uniquify_names($parsed->{participants});
+    _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
+    $parsed;
+}
+
+sub _complete_module {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    $log->warn("D1");
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(%$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed);
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => $parsed->{modules},
+    );
+}
+
+sub _complete_participant {
+}
+
+sub _complete_item {
+}
+
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
@@ -171,17 +307,40 @@ _
                 },
             },
         },
-        # XXX include_item
-        # XXX exclude_item
-        # XXX include_participant
-        # XXX exclude_participant
-        # XXX include_module
-        # XXX exclude_module
+
+        include_module => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_module,
+            tags => ['category:filtering'],
+        },
+        exclude_module => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_module,
+            tags => ['category:filtering'],
+        },
+        exclude_participant => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_participant,
+            tags => ['category:filtering'],
+        },
+        include_participant => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_participant,
+            tags => ['category:filtering'],
+        },
+        include_item => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_item,
+            tags => ['category:filtering'],
+        },
+        exclude_item => {
+            schema => ['array*', of=>'str*'],
+            completion => \&_complete_item,
+            tags => ['category:filtering'],
+        },
     },
 };
 sub bencher {
-    use experimental 'smartmatch';
-
     my %args = @_;
 
     my $action = $args{action};
@@ -194,103 +353,13 @@ sub bencher {
                 [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
     }
 
-    my $scenario;
-    if (defined $args{scenario_file}) {
-        $scenario = do $args{scenario_file};
-    } elsif (defined $args{scenario_module}) {
-        my $m = "Bencher::Scenario::$args{scenario_module}";
-        my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
-        require $mp;
-        no strict 'refs';
-        $scenario = ${"$m\::scenario"};
-    } else {
-        $scenario = {
-            participants => [],
-        };
-    }
-
-    if ($args{participants}) {
-        for (@{ $args{participants} }) {
-            push @{ $scenario->{participants} }, $_;
-        }
-    }
-    if ($args{datasets}) {
-        $scenario->{datasets} //= [];
-        for (@{ $args{datasets} }) {
-            push @{ $scenario->{datasets} }, $_;
-        }
-    }
+    my $unparsed = _get_scenario(%args);
 
     if ($action eq 'show-scenario') {
-        return [200, "OK", $scenario];
+        return [200, "OK", $unparsed];
     }
 
-    # parse scenario (extract module names, ...)
-    my $parsed = {};
-    {
-        $parsed->{participants} = [];
-        $parsed->{modules} = [];
-        my $i = -1;
-        for my $p0 (@{ $scenario->{participants} }) {
-            $i++;
-            my $p = { %$p0, seq=>$i };
-            $p->{type} //= 'perl_code';
-            if ($p->{fcall_template}) {
-                if ($p->{fcall_template} =~ /\A
-                                             (\w+(?:::\w+)*)
-                                             (::|->)
-                                             (\w+)/x) {
-                    $p->{module}   = $1;
-                    $p->{function} = $3;
-                }
-            }
-
-            if ($p->{module}) {
-                push @{ $parsed->{modules} }, $p->{module}
-                    unless $p->{module} ~~ @{ $parsed->{modules} };
-            }
-
-            # try to come up with a default name for the participant
-            unless (defined($p->{name})) {
-                if ($p->{type} eq 'command') {
-                    my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
-                        join(" ", $p->{cmdline}) : $p->{cmdline};
-                    $p->{name} = substr($cmdline, 0, 12);
-                } elsif ($p->{type} eq 'perl_code') {
-                    if ($p->{function}) {
-                        $p->{name} = ($p->{module} ? "$p->{module}::" : "").
-                            $p->{function};
-                    } elsif ($p->{module}) {
-                        $p->{name} = $p->{module};
-                    }
-                }
-            }
-
-            push @{ $parsed->{participants} }, $p;
-        } # for each participant
-
-        if ($scenario->{datasets}) {
-            $parsed->{datasets} = [];
-            my $i = -1;
-            for my $ds0 (@{ $scenario->{datasets} }) {
-                $i++;
-                my $ds = { %$ds0, seq=>$i };
-
-                # try to come up with a default name for the dataset
-                unless (defined($ds->{name})) {
-                    if ($ds->{args}) {
-                        $ds->{name} = substr(dmp($ds->{args}), 0, 14);
-                    } elsif ($ds->{argv}) {
-                        $ds->{name} = substr(dmp($ds->{argv}), 0, 14);
-                    }
-                }
-                push @{ $parsed->{datasets} }, $ds;
-            }
-        } # for each dataset
-
-        _uniquify_names($parsed->{participants});
-        _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
-    }
+    my $parsed = _parse_scenario(scenario => $unparsed);
 
     if ($action eq 'list-datasets') {
         return [200, "OK", undef] unless $parsed->{datasets};
