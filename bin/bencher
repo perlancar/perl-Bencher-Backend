@@ -122,6 +122,7 @@ sub _parse_scenario {
     my $parsed = {};
 
     $parsed->{participants} = [];
+    $parsed->{on_failure} = $unparsed->{on_failure};
     $parsed->{modules} = [];
     my $i = -1;
     for my $p0 (@{ $unparsed->{participants} }) {
@@ -344,6 +345,8 @@ sub _gen_items {
                 } else {
                     system {$cmd[0]} @cmd;
                 }
+                die "Command failed (child error=$?, os error=$!)\n"
+                    if $?;
             };
         } elsif ($p->{type} eq 'perl_code') {
             my $ds;
@@ -697,6 +700,18 @@ _
             element_completion => \&_complete_dataset,
             tags => ['category:filtering'],
         },
+
+        on_failure => {
+            summary => "What to do when command fails or Perl code dies",
+            schema => ['str*', in=>[qw/die skip/]],
+            description => <<'_',
+
+The default is "die". When set to "skip", will first run the code of each item
+before benchmarking and trap command failure/Perl exception and if that happens,
+will "skip" the item.
+
+_
+        },
     },
 };
 sub bencher {
@@ -790,6 +805,21 @@ sub bencher {
 
         for my $mod (@{ $parsed->{modules} }) {
             Module::Load::load($mod);
+        }
+
+        my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
+        if ($on_failure eq 'skip') {
+            my $fitems = [];
+            for my $it (@{ $parsed->{items} }) {
+                eval { $it->{code}->() };
+                if ($@) {
+                    warn "Skipping item #$it->{seq} ($it->{name}) ".
+                        "due to failure\n";
+                    next;
+                }
+                push @$fitems, $it;
+            }
+            $parsed->{items} = $fitems;
         }
 
         my $tres = Benchmark::Dumb::_timethese_guts(

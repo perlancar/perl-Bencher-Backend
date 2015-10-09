@@ -10,6 +10,7 @@ our $scenario = {
         {name=>'notfound-array' , cmdline=>['foo1']},
         {name=>'notfound-string', cmdline=>'foo2'},
     ],
+    #on_failure => 'skip',
 };
 
 1;
