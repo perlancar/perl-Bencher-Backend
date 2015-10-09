@@ -257,7 +257,8 @@ sub _gen_items {
     my @datasets;
 
     if ($pargs->{module_startup}) {
-        return [412, "There are no modules to benchmark the startup of"]
+        return [412, "There are no modules to benchmark ".
+                    "the startup overhead of"]
             unless @{$parsed->{modules}};
 
         # push perl as base-line
