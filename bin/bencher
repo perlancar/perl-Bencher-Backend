@@ -398,6 +398,7 @@ sub _gen_items {
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
     );
+    [200];
 }
 
 sub _complete_module {
@@ -484,7 +485,8 @@ sub _complete_item {
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
     my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
-    _gen_items(scenario=>$parsed, parent_args=>$args);
+    $res = _gen_items(scenario=>$parsed, parent_args=>$args);
+    return undef unless $res->[0] == 200;
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
@@ -779,7 +781,8 @@ sub bencher {
         return [200, "OK", \@res, \%resmeta];
     }
 
-    _gen_items(scenario=>$parsed, parent_args=>\%args);
+    my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
+    return $res unless $res->[0] == 200;
 
     if ($action eq 'list-items') {
         my @res;
