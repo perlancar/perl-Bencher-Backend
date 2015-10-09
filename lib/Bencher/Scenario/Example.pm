@@ -16,3 +16,7 @@ our $scenario = {
 
 1;
 # ABSTRACT: An example scenario
+
+=head1 SYNOPSIS
+
+ % bencher -m Example [other options]...
