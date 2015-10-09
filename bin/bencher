@@ -615,10 +615,12 @@ _
                     code => sub { $_[0]{action} = 'list-items' },
                 },
             },
+            tags => ['category:action'],
         },
         module_startup => {
             schema => ['bool*', is=>1],
-            summary => 'Benchmark module startup',
+            summary => 'Benchmark module startup overhead instead of normal benchmark',
+            tags => ['category:action'],
         },
         detail => {
             schema => 'bool*',
