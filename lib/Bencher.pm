@@ -94,6 +94,32 @@ can C<name> each dataset too, to be able to refer to it more easily.
 You can instruct the B<bencher> CLI to filter wanted/unwanted modules,
 participants, or datasets before benchmarking.
 
+Other known scenario properties (keys):
+
+=over
+
+=item * name
+
+From DefHash, scenario name (usually short and one word).
+
+=item * summary
+
+From DefHash, a one-line plaintext summary.
+
+=item * description (str)
+
+From DefHash, longer description in Markdown.
+
+=item * on_failure (str, "skip"|"die")
+
+The default is "die". When set to "skip", will first run the code of each item
+before benchmarking and trap command failure/Perl exception and if that happens,
+will "skip" the item.
+
+Can be overriden in the CLI with C<--on-failure> option.
+
+=back
+
 
 =head1 SEE ALSO
 
