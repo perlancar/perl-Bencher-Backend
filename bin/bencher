@@ -32,14 +32,60 @@ sub _uniquify_names {
     }
 }
 
+sub _filter_records_by_name_or_seq {
+    my %args = @_;
+
+    my $recs = $args{records};
+    my $include = $args{include};
+    my $exclude = $args{exclude};
+
+    my $frecs = [];
+
+  REC:
+    for my $rec (@$recs) {
+        if ($include && @$include) {
+            my $included;
+          INC:
+            for my $inc (@$include) {
+                if ($inc =~ /\A\d+\z/) {
+                    if ($rec->{seq} == $inc) {
+                        $included++;
+                        last INC;
+                    }
+                } else {
+                    if ($rec->{name} eq $inc) {
+                        $included++;
+                        last INC;
+                    }
+                }
+            }
+            next REC unless $included;
+        }
+        if ($exclude && @$exclude) {
+            for my $exc (@$exclude) {
+                if ($exc =~ /\A\d+\z/) {
+                    next REC if $rec->{seq} == $exc;
+                } else {
+                    next REC if $rec->{name} eq $exc;
+                }
+            }
+        }
+        push @$frecs, $rec;
+    }
+
+    $frecs;
+}
+
 sub _get_scenario {
     my %args = @_;
 
+    my $pargs = $args{parent_args};
+
     my $scenario;
-    if (defined $args{scenario_file}) {
-        $scenario = do $args{scenario_file};
-    } elsif (defined $args{scenario_module}) {
-        my $m = "Bencher::Scenario::$args{scenario_module}";
+    if (defined $pargs->{scenario_file}) {
+        $scenario = do $pargs->{scenario_file};
+    } elsif (defined $pargs->{scenario_module}) {
+        my $m = "Bencher::Scenario::$pargs->{scenario_module}";
         my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
         require $mp;
         no strict 'refs';
@@ -50,27 +96,29 @@ sub _get_scenario {
         };
     }
 
-    if ($args{participants}) {
-        for (@{ $args{participants} }) {
+    if ($pargs->{participants}) {
+        for (@{ $pargs->{participants} }) {
             push @{ $scenario->{participants} }, $_;
         }
     }
-    if ($args{datasets}) {
+    if ($pargs->{datasets}) {
         $scenario->{datasets} //= [];
-        for (@{ $args{datasets} }) {
+        for (@{ $pargs->{datasets} }) {
             push @{ $scenario->{datasets} }, $_;
         }
     }
     $scenario;
 }
 
-# parse scenario (extract module names, ...)
+# parse scenario (extract module names, filter modules, ...)
 sub _parse_scenario {
     use experimental 'smartmatch';
 
     my %args = @_;
 
     my $unparsed = $args{scenario};
+    my $pargs = $args{parent_args};
+
     my $parsed = {};
 
     $parsed->{participants} = [];
@@ -135,7 +183,212 @@ sub _parse_scenario {
 
     _uniquify_names($parsed->{participants});
     _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
+
+    # filter by include_modules & exclude_modules
+    if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
+        $parsed->{modules} = [grep {
+            $_ ~~ @{ $pargs->{include_modules} }
+        } @{ $parsed->{modules} }];
+        $parsed->{participants} = [grep {
+            !defined($_->{module}) || $_->{module} ~~ @{ $pargs->{include_modules} }
+        } @{ $parsed->{participants} }];
+    }
+    if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
+        $parsed->{modules} = [grep {
+            !($_ ~~ @{ $pargs->{exclude_modules} })
+        } @{ $parsed->{modules} }];
+        $parsed->{participants} = [grep {
+            !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
+        } @{ $parsed->{participants} }];
+    }
+    if ($pargs->{include_module_pattern}) {
+        $parsed->{modules} = [grep {
+            $_ =~ qr/$pargs->{include_module_pattern}/i
+        } @{ $parsed->{modules} }];
+        $parsed->{participants} = [grep {
+            !defined($_->{module}) || $_->{module} =~ qr/$pargs->{include_module_pattern}/i
+        } @{ $parsed->{participants} }];
+    }
+    if ($pargs->{exclude_module_pattern}) {
+        $parsed->{modules} = [grep {
+            $_ !~ qr/$pargs->{exclude_module_pattern}/i
+        } @{ $parsed->{modules} }];
+        $parsed->{participants} = [grep {
+            !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
+        } @{ $parsed->{participants} }];
+    }
+
+    $parsed->{participants} = _filter_records_by_name_or_seq(
+        records => $parsed->{participants},
+        include => $pargs->{include_participants},
+        exclude => $pargs->{exclude_participants},
+    );
+    $parsed->{datasets} = _filter_records_by_name_or_seq(
+        records => $parsed->{datasets},
+        include => $pargs->{include_datasets},
+        exclude => $pargs->{exclude_datasets},
+    );
+
     $parsed;
+}
+
+sub _gen_items {
+    require Permute::Named::Iter;
+
+    my %args = @_;
+
+    my $parsed = $args{scenario};
+    my $pargs  = $args{parent_args};
+
+    $parsed->{items} = [];
+    my @permute;
+
+    # XXX allow permutation of perl path
+    # XXX allow permutation of module path
+
+    my @participants;
+    my @datasets;
+
+    if ($pargs->{module_startup}) {
+        return [412, "There are no modules to benchmark the startup of"]
+            unless @{$parsed->{modules}};
+
+        # push perl as base-line
+        {
+            push @participants, {
+                seq  => 0,
+                name => "loading perl (baseline)",
+                type => 'command',
+                cmdline => [$^X, "-e1"],
+            };
+
+            my $i = 0;
+            for my $mod (@{ $parsed->{modules} }) {
+                $i++;
+                push @participants, {
+                    seq  => $i,
+                    name => $mod,
+                    type => 'command',
+                    cmdline => [$^X, "-M$mod", "-e1"],
+                };
+            }
+        }
+
+        # postprocess result
+        $parsed->{after_bench} = sub {
+            my %a = @_;
+            my $res = $a{result};
+            for my $i (reverse 1..$#{$res}) {
+                $res->[$i]{time} -= $res->[0]{time};
+            }
+            shift @$res;
+        };
+    } else {
+        return [412, "Please load a scenario (-m, -f) or ".
+                    "specify at least one participant (-p)"]
+            unless @{$parsed->{participants}};
+        @participants = @{ $parsed->{participants} };
+        @datasets = @{ $parsed->{datasets} } if $parsed->{datasets};
+    }
+
+    push @permute, "participant", [0..$#participants];
+
+    if (@datasets) {
+        push @permute, "dataset", [0..$#{$parsed->{datasets}}];
+    }
+    $log->debugf("permute: %s", \@permute);
+
+    my $iter = Permute::Named::Iter::permute_named_iter(@permute);
+    my $i = -1;
+    while (my $h = $iter->()) {
+        $log->tracef("iter returns: %s", $h);
+        $i++;
+        my $item_name;
+        {
+            # convert participant's & dataset index to name temporarily, for
+            # nicer item name
+            my %h = %$h;
+            $h{participant} = $participants[$h{participant}]{name};
+            $h{dataset} = $datasets[$h{dataset}]{name}
+                if exists $h{dataset};
+            my @k = keys %h;
+            if (@k == 1) {
+                $item_name = $h{$k[0]};
+            } else {
+                $item_name = dmp(\%h);
+            }
+        }
+
+        my $p = $participants[$h->{participant}];
+
+        my $code;
+        if ($p->{type} eq 'command') {
+            my @cmd;
+            my $shell;
+            if (ref($p->{cmdline}) eq 'ARRAY') {
+                @cmd = @{ $p->{cmdline} };
+                $shell = 0;
+            } else {
+                @cmd = ($p->{cmdline});
+                $shell = 1;
+            }
+            $code = sub {
+                if ($shell) {
+                    system $cmd[0];
+                } else {
+                    system {$cmd[0]} @cmd;
+                }
+            };
+        } elsif ($p->{type} eq 'perl_code') {
+            my $ds;
+            $ds = $datasets[$h->{dataset}] if defined($h->{dataset});
+            if ($p->{code}) {
+                if ($ds) {
+                    if ($ds->{argv}) {
+                        $code = sub { $p->{code}->(@{$ds->{argv}}) };
+                    } elsif ($ds->{args}) {
+                        $code = sub { $p->{code}->(%{$ds->{args}}) };
+                    } else {
+                        return [400, "Participant #$p->{seq}: No argv/args supplied for code"];
+                    }
+                } else {
+                    $code = $p->{code};
+                }
+            } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
+                my $template_vars;
+                if ($ds->{args}) {
+                    $template_vars = $ds->{args};
+                } elsif ($ds->{argv}) {
+                    $template_vars = { map {$_=>$ds->{argv}[$_]}
+                                           @{ $ds->{argv} } };
+                } else {
+                    warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
+                }
+
+                if ($template_vars) {
+                    $template =~ s/\<(\w+)\>/dmp($template_vars->{$1})/eg;
+                }
+                my $code_str = "sub { $template }";
+                $log->debugf("Item #%d: code=%s", $i, $code_str);
+                $code = eval $code_str;
+                return [400, "Item #$i: code compile error: $@ (code: $code_str)"] if $@;
+            }
+        } else {
+            return [400, "Unknown participant type '$p->{type}'"];
+        }
+
+        push @{ $parsed->{items} }, {
+            seq  => $i,
+            name => $item_name,
+            code => $code,
+        };
+    }
+
+    $parsed->{items} = _filter_records_by_name_or_seq(
+        records => $parsed->{items},
+        include => $pargs->{include_items},
+        exclude => $pargs->{exclude_items},
+    );
 }
 
 sub _complete_module {
@@ -150,10 +403,9 @@ sub _complete_module {
     $r->{read_config} = 1;
     my $res = $cmdline->parse_argv($r);
 
-    $log->warn("D1");
     my $args = $res->[2];
-    my $unparsed = _get_scenario(%$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed);
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
@@ -163,9 +415,74 @@ sub _complete_module {
 }
 
 sub _complete_participant {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => [map {($_->{seq}, $_->{name})} @{$parsed->{participants}}],
+    );
+}
+
+sub _complete_dataset {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => [map {($_->{seq}, $_->{name})} @{$parsed->{datasets}}],
+    );
 }
 
 sub _complete_item {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    _gen_items(scenario=>$parsed, parent_args=>$args);
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => [grep {!/\{/} # remove names that are too unwieldy
+                      map {($_->{seq}, $_->{name})} @{$parsed->{items}}],
+    );
 }
 
 $SPEC{bencher} = {
@@ -308,34 +625,70 @@ _
             },
         },
 
-        include_module => {
+        include_modules => {
+            summary => 'Only include matching module(s)',
+            'x.name.is_plural' => 1,
             schema => ['array*', of=>'str*'],
-            completion => \&_complete_module,
+            element_completion => \&_complete_module,
             tags => ['category:filtering'],
         },
-        exclude_module => {
-            schema => ['array*', of=>'str*'],
-            completion => \&_complete_module,
+        include_module_pattern => {
+            summary => 'Only include module(s) matching this regex pattern',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
-        exclude_participant => {
+        exclude_modules => {
+            summary => 'Exclude matching module(s)',
+            'x.name.is_plural' => 1,
             schema => ['array*', of=>'str*'],
-            completion => \&_complete_participant,
+            element_completion => \&_complete_module,
             tags => ['category:filtering'],
         },
-        include_participant => {
-            schema => ['array*', of=>'str*'],
-            completion => \&_complete_participant,
+        exclude_module_pattern => {
+            summary => 'Exclude module(s) matching this regex pattern',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
-        include_item => {
+        include_participants => {
+            summary => 'Only include participants whose seq/name matches this',
+            'x.name.is_plural' => 1,
             schema => ['array*', of=>'str*'],
-            completion => \&_complete_item,
+            element_completion => \&_complete_participant,
             tags => ['category:filtering'],
         },
-        exclude_item => {
+        exclude_participants => {
+            summary => 'Exclude participants whose seq/name matches this',
+            'x.name.is_plural' => 1,
             schema => ['array*', of=>'str*'],
-            completion => \&_complete_item,
+            element_completion => \&_complete_participant,
+            tags => ['category:filtering'],
+        },
+        include_items => {
+            summary => 'Only include items whose seq/name matches this',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_item,
+            tags => ['category:filtering'],
+        },
+        exclude_items => {
+            summary => 'Exclude items whose seq/name matches this',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_item,
+            tags => ['category:filtering'],
+        },
+        include_datasets => {
+            summary => 'Only include dataset whose seq/name matches this',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_dataset,
+            tags => ['category:filtering'],
+        },
+        exclude_datasets => {
+            summary => 'Exclude items whose seq/name matches this',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_dataset,
             tags => ['category:filtering'],
         },
     },
@@ -353,13 +706,13 @@ sub bencher {
                 [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
     }
 
-    my $unparsed = _get_scenario(%args);
+    my $unparsed = _get_scenario(parent_args=>\%args);
 
     if ($action eq 'show-scenario') {
         return [200, "OK", $unparsed];
     }
 
-    my $parsed = _parse_scenario(scenario => $unparsed);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>\%args);
 
     if ($action eq 'list-datasets') {
         return [200, "OK", undef] unless $parsed->{datasets};
@@ -405,155 +758,7 @@ sub bencher {
         return [200, "OK", \@res, \%resmeta];
     }
 
-    # generate benchmark items from participants
-    {
-        require Permute::Named::Iter;
-
-        $parsed->{items} = [];
-        my @permute;
-
-        # XXX allow permutation of perl path
-        # XXX allow permutation of module path
-
-        my @participants;
-        my @datasets;
-
-        if ($args{module_startup}) {
-            return [412, "There are no modules to benchmark the startup of"]
-                unless @{$parsed->{modules}};
-
-            # push perl as base-line
-            {
-                push @participants, {
-                    seq  => 0,
-                    name => "loading perl (baseline)",
-                    type => 'command',
-                    cmdline => [$^X, "-e1"],
-                };
-
-                my $i = 0;
-                for my $mod (@{ $parsed->{modules} }) {
-                    $i++;
-                    push @participants, {
-                        seq  => $i,
-                        name => $mod,
-                        type => 'command',
-                        cmdline => [$^X, "-M$mod", "-e1"],
-                    };
-                }
-            }
-
-            # postprocess result
-            $parsed->{after_bench} = sub {
-                my %args = @_;
-                my $res = $args{result};
-                for my $i (reverse 1..$#{$res}) {
-                    $res->[$i]{time} -= $res->[0]{time};
-                }
-                shift @$res;
-            };
-        } else {
-            return [412, "Please load a scenario (-m, -f) or ".
-                        "specify at least one participant (-p)"]
-                unless @{$parsed->{participants}};
-            @participants = @{ $parsed->{participants} };
-            @datasets = @{ $parsed->{datasets} } if $parsed->{datasets};
-        }
-
-        push @permute, "participant", [0..$#participants];
-
-        if (@datasets) {
-            push @permute, "dataset", [0..$#{$parsed->{datasets}}];
-        }
-        $log->debugf("permute: %s", \@permute);
-
-        my $iter = Permute::Named::Iter::permute_named_iter(@permute);
-        my $i = -1;
-        while (my $h = $iter->()) {
-            $log->tracef("iter returns: %s", $h);
-            $i++;
-            my $item_name;
-            {
-                # convert participant's & dataset index to name temporarily, for
-                # nicer item name
-                my %h = %$h;
-                $h{participant} = $participants[$h{participant}]{name};
-                $h{dataset} = $datasets[$h{dataset}]{name}
-                    if exists $h{dataset};
-                my @k = keys %h;
-                if (@k == 1) {
-                    $item_name = $h{$k[0]};
-                } else {
-                    $item_name = dmp(\%h);
-                }
-            }
-
-            my $p = $participants[$h->{participant}];
-
-            my $code;
-            if ($p->{type} eq 'command') {
-                my @cmd;
-                my $shell;
-                if (ref($p->{cmdline}) eq 'ARRAY') {
-                    @cmd = @{ $p->{cmdline} };
-                    $shell = 0;
-                } else {
-                    @cmd = ($p->{cmdline});
-                    $shell = 1;
-                }
-                $code = sub {
-                    if ($shell) {
-                        system $cmd[0];
-                    } else {
-                        system {$cmd[0]} @cmd;
-                    }
-                };
-            } elsif ($p->{type} eq 'perl_code') {
-                my $ds;
-                $ds = $datasets[$h->{dataset}] if defined($h->{dataset});
-                if ($p->{code}) {
-                    if ($ds) {
-                        if ($ds->{argv}) {
-                            $code = sub { $p->{code}->(@{$ds->{argv}}) };
-                        } elsif ($ds->{args}) {
-                            $code = sub { $p->{code}->(%{$ds->{args}}) };
-                        } else {
-                            return [400, "Participant #$p->{seq}: No argv/args supplied for code"];
-                        }
-                    } else {
-                        $code = $p->{code};
-                    }
-                } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
-                    my $template_vars;
-                    if ($ds->{args}) {
-                        $template_vars = $ds->{args};
-                    } elsif ($ds->{argv}) {
-                        $template_vars = { map {$_=>$ds->{argv}[$_]}
-                                               @{ $ds->{argv} } };
-                    } else {
-                        warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
-                    }
-
-                    if ($template_vars) {
-                        $template =~ s/\<(\w+)\>/dmp($template_vars->{$1})/eg;
-                    }
-                    my $code_str = "sub { $template }";
-                    $log->debugf("Item #%d: code=%s", $i, $code_str);
-                    $code = eval $code_str;
-                    return [400, "Item #$i: code compile error: $@ (code: $code_str)"] if $@;
-                }
-            } else {
-                return [400, "Unknown participant type '$p->{type}'"];
-            }
-
-            push @{ $parsed->{items} }, {
-                seq  => $i,
-                name => $item_name,
-                code => $code,
-            };
-        }
-
-    } # generate benchmark items
+    _gen_items(scenario=>$parsed, parent_args=>\%args);
 
     if ($action eq 'list-items') {
         my @res;
