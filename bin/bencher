@@ -773,13 +773,14 @@ sub bencher {
                     name     => $p->{name},
                     function => $p->{function},
                     module   => $p->{module},
+                    cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
                 };
             } else {
                 push @res, $p->{name};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq type name function module/]
+        $resmeta{'table.fields'} = [qw/seq type name module function cmdline/]
             if $args{detail};
         return [200, "OK", \@res, \%resmeta];
     }
