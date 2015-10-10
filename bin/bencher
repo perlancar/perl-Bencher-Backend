@@ -261,11 +261,11 @@ sub _gen_items {
                     "the startup overhead of"]
             unless @{$parsed->{modules}};
 
-        # push perl as base-line
         {
+            # push perl as base-line
             push @participants, {
                 seq  => 0,
-                name => "loading perl (baseline)",
+                name => "perl -e1 (baseline)",
                 type => 'command',
                 cmdline => [$^X, "-e1"],
             };
@@ -281,16 +281,6 @@ sub _gen_items {
                 };
             }
         }
-
-        # postprocess result
-        $parsed->{after_bench} = sub {
-            my %a = @_;
-            my $res = $a{result};
-            for my $i (reverse 1..$#{$res}) {
-                $res->[$i]{time} -= $res->[0]{time};
-            }
-            shift @$res;
-        };
     } else {
         return [412, "Please load a scenario (-m, -f) or ".
                     "specify at least one participant (-p)"]
