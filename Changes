@@ -1,5 +1,16 @@
 Revision history for Bencher
 
+0.03    2015-10-11 (PERLANCAR)
+
+	- [Incompatible change] No longer subtract perl baseline time from
+	  module startup time.
+
+	- Add more filtering options
+          --{in,ex}clude-{item,dataset,participant}-pattern.
+
+        - Some other fixes & tweaks.
+
+
 0.02    2015-10-09 (PERLANCAR)
 
 	- Add several --include-* and --exlude-* options to filter
