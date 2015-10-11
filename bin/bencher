@@ -32,12 +32,23 @@ sub _uniquify_names {
     }
 }
 
+sub _find_record_by_seq {
+    my ($recs, $seq) = @_;
+
+    for my $rec (@$recs) {
+        return $rec if $rec->{seq} == $seq;
+    }
+    undef;
+}
+
 sub _filter_records_by_name_or_seq {
     my %args = @_;
 
     my $recs = $args{records};
     my $include = $args{include};
     my $exclude = $args{exclude};
+    my $include_pattern = $args{include_pattern};
+    my $exclude_pattern = $args{exclude_pattern};
 
     my $frecs = [];
 
@@ -69,6 +80,14 @@ sub _filter_records_by_name_or_seq {
                     next REC if $rec->{name} eq $exc;
                 }
             }
+        }
+        if ($include_pattern) {
+            next REC unless $rec->{seq} =~ /$include_pattern/i ||
+                $rec->{name} =~ /$include_pattern/i;
+        }
+        if ($exclude_pattern) {
+            next REC if $rec->{seq} =~ /$exclude_pattern/i ||
+                $rec->{name} =~ /$exclude_pattern/i;
         }
         push @$frecs, $rec;
     }
@@ -229,11 +248,15 @@ sub _parse_scenario {
         records => $parsed->{participants},
         include => $pargs->{include_participants},
         exclude => $pargs->{exclude_participants},
+        include_pattern => $pargs->{include_participant_pattern},
+        exclude_pattern => $pargs->{exclude_participant_pattern},
     );
     $parsed->{datasets} = _filter_records_by_name_or_seq(
         records => $parsed->{datasets},
         include => $pargs->{include_datasets},
         exclude => $pargs->{exclude_datasets},
+        include_pattern => $pargs->{include_dataset_pattern},
+        exclude_pattern => $pargs->{exclude_dataset_pattern},
     );
 
     $parsed;
@@ -253,8 +276,8 @@ sub _gen_items {
     # XXX allow permutation of perl path
     # XXX allow permutation of module path
 
-    my @participants;
-    my @datasets;
+    my $participants;
+    my $datasets;
 
     if ($pargs->{module_startup}) {
         return [412, "There are no modules to benchmark ".
@@ -263,7 +286,7 @@ sub _gen_items {
 
         {
             # push perl as base-line
-            push @participants, {
+            push @$participants, {
                 seq  => 0,
                 name => "perl -e1 (baseline)",
                 type => 'command',
@@ -273,7 +296,7 @@ sub _gen_items {
             my $i = 0;
             for my $mod (@{ $parsed->{modules} }) {
                 $i++;
-                push @participants, {
+                push @$participants, {
                     seq  => $i,
                     name => $mod,
                     type => 'command',
@@ -285,14 +308,14 @@ sub _gen_items {
         return [412, "Please load a scenario (-m, -f) or ".
                     "specify at least one participant (-p)"]
             unless @{$parsed->{participants}};
-        @participants = @{ $parsed->{participants} };
-        @datasets = @{ $parsed->{datasets} } if $parsed->{datasets};
+        $participants = $parsed->{participants};
+        $datasets = $parsed->{datasets} if $parsed->{datasets};
     }
 
-    push @permute, "participant", [0..$#participants];
+    push @permute, "participant", [map {$_->{seq}} @$participants];
 
-    if (@datasets) {
-        push @permute, "dataset", [0..$#{$parsed->{datasets}}];
+    if ($datasets) {
+        push @permute, "dataset", [map {$_->{seq}} @$datasets];
     }
     $log->debugf("permute: %s", \@permute);
 
@@ -302,13 +325,17 @@ sub _gen_items {
         $log->tracef("iter returns: %s", $h);
         $i++;
         my $item_name;
+
+        my $p = _find_record_by_seq($participants, $h->{participant});
+        my $ds; $ds = _find_record_by_seq($datasets, $h->{dataset})
+            if exists $h->{dataset};
+
         {
             # convert participant's & dataset index to name temporarily, for
             # nicer item name
             my %h = %$h;
-            $h{participant} = $participants[$h{participant}]{name};
-            $h{dataset} = $datasets[$h{dataset}]{name}
-                if exists $h{dataset};
+            $h{participant} = $p->{name};
+            $h{dataset} = $ds->{name} if $ds;
             my @k = keys %h;
             if (@k == 1) {
                 $item_name = $h{$k[0]};
@@ -316,8 +343,6 @@ sub _gen_items {
                 $item_name = dmp(\%h);
             }
         }
-
-        my $p = $participants[$h->{participant}];
 
         my $code;
         if ($p->{type} eq 'command') {
@@ -340,8 +365,6 @@ sub _gen_items {
                     if $?;
             };
         } elsif ($p->{type} eq 'perl_code') {
-            my $ds;
-            $ds = $datasets[$h->{dataset}] if defined($h->{dataset});
             if ($p->{code}) {
                 if ($ds) {
                     if ($ds->{argv}) {
@@ -349,7 +372,7 @@ sub _gen_items {
                     } elsif ($ds->{args}) {
                         $code = sub { $p->{code}->(%{$ds->{args}}) };
                     } else {
-                        return [400, "Participant #$p->{seq}: No argv/args supplied for code"];
+                        return [400, "Participant #$p->{seq}, dataset #$h->{dataset}: No argv/args supplied for code"];
                     }
                 } else {
                     $code = $p->{code};
@@ -388,6 +411,8 @@ sub _gen_items {
         records => $parsed->{items},
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
+        include_pattern => $pargs->{include_item_pattern},
+        exclude_pattern => $pargs->{exclude_item_pattern},
     );
     [200];
 }
@@ -630,20 +655,22 @@ _
         },
 
         include_modules => {
-            summary => 'Only include matching module(s)',
             'x.name.is_plural' => 1,
+            summary => 'Only include modules specified in this list',
+            'summary.alt.plurality.singular' => 'Add module to include list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_module,
             tags => ['category:filtering'],
         },
         include_module_pattern => {
-            summary => 'Only include module(s) matching this regex pattern',
+            summary => 'Only include modules matching this regex pattern',
             schema => ['re*'],
             tags => ['category:filtering'],
         },
         exclude_modules => {
-            summary => 'Exclude matching module(s)',
             'x.name.is_plural' => 1,
+            summary => 'Exclude modules specified in this list',
+            'summary.alt.plurality.singular' => 'Add module to exclude list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_module,
             tags => ['category:filtering'],
@@ -653,46 +680,85 @@ _
             schema => ['re*'],
             tags => ['category:filtering'],
         },
+
         include_participants => {
-            summary => 'Only include participants whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Only include participants whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add participant to include list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_participant,
+            tags => ['category:filtering'],
+        },
+        include_participant_pattern => {
+            summary => 'Only include participants matching this regex pattern',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
         exclude_participants => {
-            summary => 'Exclude participants whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Exclude participants whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add participant to include list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_participant,
             tags => ['category:filtering'],
         },
+        exclude_participant_pattern => {
+            summary => 'Exclude participants matching this regex pattern',
+            schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+
         include_items => {
-            summary => 'Only include items whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Only include items whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add item to include list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_item,
+            tags => ['category:filtering'],
+        },
+        include_item_pattern => {
+            summary => 'Only include items matching this regex pattern',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
         exclude_items => {
-            summary => 'Exclude items whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Exclude items whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add item to exclude list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_item,
             tags => ['category:filtering'],
         },
+        exclude_item_pattern => {
+            summary => 'Exclude items matching this regex pattern',
+            schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+
         include_datasets => {
-            summary => 'Only include dataset whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Only include datasets whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add dataset to include list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_dataset,
             tags => ['category:filtering'],
         },
+        include_dataset_pattern => {
+            summary => 'Only include datasets matching this regex pattern',
+            schema => 're*',
+            tags => ['category:filtering'],
+        },
         exclude_datasets => {
-            summary => 'Exclude items whose seq/name matches this',
             'x.name.is_plural' => 1,
+            summary => 'Exclude datasets whose seq/name matches this',
+            'summary.alt.plurality.singular' => 'Add dataset to exclude list',
             schema => ['array*', of=>'str*'],
             element_completion => \&_complete_dataset,
+            tags => ['category:filtering'],
+        },
+        exclude_dataset_pattern => {
+            summary => 'Exclude datasets matching this regex pattern',
+            schema => 're*',
             tags => ['category:filtering'],
         },
 
