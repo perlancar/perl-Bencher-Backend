@@ -14,6 +14,8 @@ use Benchmark::Dumb qw(timethese);
 
 =head1 SYNOPSIS
 
+See L<bencher> CLI.
+
 
 =head1 DESCRIPTION
 
@@ -122,6 +124,8 @@ Can be overriden in the CLI with C<--on-failure> option.
 
 
 =head1 SEE ALSO
+
+L<bencher>
 
 B<BenchmarkAnything>. There are lot of overlaps of goals between Bencher and
 this project. I hope to reuse or interoperate parts of BenchmarkAnything, e.g.

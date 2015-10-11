@@ -939,30 +939,43 @@ List all scenario modules (Bencher::Scenario::*):
  % bencher --list-scenario-modules
  % bencher -L
 
-Run benchmark from a scenario module:
+Run benchmark described by a scenario module:
 
  % bencher -m Example
 
-Run benchmark from a scenario file:
+Run benchmark described by a scenario file:
 
  % bencher -f scenario.pl
 
-Add participants etc from the command-line instead of using a scenario
-file/module:
+Add participants from the command-line instead of (or in addition to) those
+specified in a scenario file/module:
 
- % bencher -p '{"fcall_template":"Bar::func"}'
+ % bencher -p '{"fcall_template":"Bar::func(<arg>)"}'
 
-Run module startup overhead benchmark instead of the normal run:
+Run module startup overhead benchmark instead of the normal benchmark:
 
  % bencher -m Example --module-startup
+
+Show/dump scenario instead of running benchmark:
+
+ % bencher -m Example --show-scenario
 
 List participants instead of running benchmark:
 
  % bencher ... --list-participants
 
-List benchmark items instead of running benchmark:
+List datasets instead of running benchmark:
+
+ % bencher ... --list-datasets
+
+List items instead of running benchmark:
 
  % bencher ... --list-items
+
+Select (include/exclude) participants before running benchmark (you can also
+select datasets/modules/items):
+
+ % bencher ... --include-participant-pattern 'Tiny|Lite' --exclude-participant 'HTTP::Tiny'
 
 
 =head1 DESCRIPTION
