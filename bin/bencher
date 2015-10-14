@@ -377,10 +377,10 @@ sub _gen_items {
         if (exists $h->{dataset}) {
             $ds = _find_record_by_seq($datasets, $h->{dataset});
             # filter first
-            if ($ds->{participant_tags}) {
+            if ($ds->{include_participant_tags}) {
                 my $included = 0;
               INCTAG:
-                for my $tag (@{ $ds->{participant_tags} }) {
+                for my $tag (@{ $ds->{include_participant_tags} }) {
                     if ($tag =~ /\&/) {
                         for my $simpletag (split /\s*&\s*/, $tag) {
                             unless (grep {$simpletag eq $_} @{ $p->{tags} // [] }) {
