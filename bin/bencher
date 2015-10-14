@@ -369,6 +369,7 @@ sub _gen_items {
 
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
     my $i = -1;
+    my $items = [];
   ITER:
     while (my $h = $iter->()) {
         $log->tracef("iter returns: %s", $h);
@@ -508,21 +509,22 @@ sub _gen_items {
             return [400, "Unknown participant type '$p->{type}'"];
         }
 
-        push @{ $parsed->{items} }, {
+        push @$items, {
             seq  => $i,
             name => $item_name,
             code => $code,
         };
     } # ITER
 
-    $parsed->{items} = _filter_records(
-        records => $parsed->{items},
+    $items = _filter_records(
+        records => $items,
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
         include_pattern => $pargs->{include_item_pattern},
         exclude_pattern => $pargs->{exclude_item_pattern},
     ) if $apply_filters;
-    [200];
+
+    [200, "OK", $items];
 }
 
 sub _complete_module {
@@ -699,12 +701,13 @@ sub _complete_item {
         apply_filters => $args{apply_filters},
     );
     return undef unless $res->[0] == 200;
+    my $items = $res->[2];
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
         array => [grep {!/\{/} # remove names that are too unwieldy
-                      map {($_->{seq}, $_->{name})} @{$parsed->{items}}],
+                      map {($_->{seq}, $_->{name})} @$items],
     );
 }
 
@@ -1120,10 +1123,11 @@ sub bencher {
 
     my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
     return $res unless $res->[0] == 200;
+    my $items = $res->[2];
 
     if ($action eq 'list-items') {
         my @res;
-        for my $it (@{ $parsed->{items} }) {
+        for my $it (@$items) {
             if ($args{detail}) {
                 push @res, {
                     seq      => $it->{seq},
@@ -1150,7 +1154,7 @@ sub bencher {
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         if ($on_failure eq 'skip') {
             my $fitems = [];
-            for my $it (@{ $parsed->{items} }) {
+            for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{name});
                 eval { $it->{code}->() };
@@ -1161,20 +1165,20 @@ sub bencher {
                 }
                 push @$fitems, $it;
             }
-            $parsed->{items} = $fitems;
+            $items = $fitems;
         }
 
         my $tres = Benchmark::Dumb::_timethese_guts(
             0,
             {
-                map { $_->{seq} => $_->{code} } @{ $parsed->{items} }
+                map { $_->{seq} => $_->{code} } @$items
             },
             "silent",
         );
-        my @res;
+        my $res = [];
         for my $seq (sort {$a<=>$b} keys %$tres) {
-            my $it = _find_record_by_seq($parsed->{items}, $seq);
-            push @res, {
+            my $it = _find_record_by_seq($items, $seq);
+            push @$res, {
                 seq     => $seq,
                 name    => $it->{name},
                 time    => $tres->{$seq}{result}{num},
