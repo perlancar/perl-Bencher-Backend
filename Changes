@@ -1,5 +1,15 @@
 Revision history for Bencher
 
+0.05    2015-10-14 (PERLANCAR)
+
+	- No functional changes.
+
+	- [Bugfix] Fix completion of --include-* and --exclude-* option value.
+
+	- [Bugfix] Finding item should not use array subscript (this caused some
+	  items' names to be empty in bench result).
+
+
 0.04    2015-10-14 (PERLANCAR)
 
 	- Observe dataset spec's properties: {include,exclude}_participant_tags.
