@@ -397,8 +397,37 @@ sub _gen_items {
                     }
                 }
                 unless ($included) {
-                    $log->tracef("skipped dataset by tags (dataset:%s vs participant:%s)",
-                                 $ds->{participant_tags}, $p->{tags});
+                    $log->tracef(
+                        "skipped dataset by include_participant_tags ".
+                            "(%s vs participant:%s)",
+                        $ds->{include_participant_tags}, $p->{tags});
+                    next ITER;
+                }
+            }
+            if ($ds->{exclude_participant_tags}) {
+                my $excluded = 0;
+              EXCTAG:
+                for my $tag (@{ $ds->{exclude_participant_tags} }) {
+                    if ($tag =~ /\&/) {
+                        for my $simpletag (split /\s*&\s*/, $tag) {
+                            unless (grep {$simpletag eq $_} @{ $p->{tags} // [] }) {
+                                next EXCTAG;
+                            }
+                        }
+                        $excluded++;
+                        last EXCTAG;
+                    } else {
+                        if (grep {$tag eq $_} @{ $p->{tags} // [] }) {
+                            $excluded++;
+                            last EXCTAG;
+                        }
+                    }
+                }
+                if ($excluded) {
+                    $log->tracef(
+                        "skipped dataset by exclude_participant_tags ".
+                            "(%s vs participant:%s)",
+                        $ds->{exclude_participant_tags}, $p->{tags});
                     next ITER;
                 }
             }
