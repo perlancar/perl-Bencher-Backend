@@ -445,6 +445,7 @@ sub _gen_items {
             } else {
                 $item_name = dmp(\%h);
             }
+            #$log->tracef("Set item name to: %s", $item_name);
         }
 
         my $code;
@@ -508,7 +509,7 @@ sub _gen_items {
             name => $item_name,
             code => $code,
         };
-    }
+    } # ITER
 
     $parsed->{items} = _filter_records(
         records => $parsed->{items},
@@ -1113,7 +1114,7 @@ sub bencher {
         );
         my @res;
         for my $seq (sort {$a<=>$b} keys %$tres) {
-            my $it = $parsed->{items}[$seq];
+            my $it = _find_record_by_seq($parsed->{items}, $seq);
             push @res, {
                 seq     => $seq,
                 name    => $it->{name},
