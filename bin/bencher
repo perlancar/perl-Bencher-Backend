@@ -9,7 +9,7 @@ use warnings;
 use Log::Any::IfLOG '$log';
 
 use Data::Dmp;
-use List::MoreUtils qw(uniq);
+use List::MoreUtils qw(minmax uniq);
 use Perinci::CmdLine::Any;
 
 our %SPEC;
@@ -841,18 +841,6 @@ _
             schema => 'bool*',
             cmdline_aliases => {l=>{}},
         },
-        time_unit => {
-            schema => ['str*', in=>[qw/s ms/]],
-            default => 's',
-            cmdline_aliases => {
-                ms => {
-                    is_flag => 1,
-                    code => sub { $_[0]{time_unit} = 'ms' },
-                    summary => 'Alias for --time-unit=ms',
-                },
-            },
-        },
-
         include_modules => {
             'x.name.is_plural' => 1,
             summary => 'Only include modules specified in this list',
@@ -1188,24 +1176,52 @@ sub bencher {
             };
         }
 
-        @res = sort {$b->{time} <=> $a->{time}} @res;
+      FORMAT:
+        {
+            my $r = $args{-cmdline_r};
+            last unless $r && ($r->{format} // 'text') =~ /text/;
 
-        if ($args{time_unit} eq 'ms') {
-            for my $res (@res) {
-                $res->{time} = sprintf("%10.4fms", $res->{time}*1000);
+            # sort by default from slowest to fastest
+            $res = [sort {$b->{time} <=> $a->{time}} @$res];
+
+            # pick an appropriate time unit & format the time
+            my ($min, $max) = minmax(map {$_->{time}} @$res);
+
+            my ($unit, $factor);
+            if ($max <= 1.5e-6) {
+                $unit = "ns";
+                $factor = 1e9;
+            } elsif ($max <= 1.5e-3) {
+                $unit = "\x{03bc}s"; # XXX enable utf
+                $factor = 1e6;
+            } elsif ($max <= 1.5) {
+                $unit = "ms";
+                $factor = 1e3;
+            }
+
+            if ($unit) {
+                for my $rit (@$res) {
+                    # XXX format number of decimal digits of 'time' and 'rate'
+                    # based on sigma
+                    $rit->{time} = sprintf(
+                        "%.5f%s", $rit->{time} * $factor, $unit);
+                }
             }
         }
+
         my %resmeta;
         $resmeta{'table.fields'} = [qw/seq name rate time samples errors/];
-        return [200, "OK", \@res, \%resmeta];
+        return [200, "OK", $res, \%resmeta];
     }
 
     [304,"No action"];
 }
 
+binmode(STDOUT, ":utf8");
 Perinci::CmdLine::Any->new(
     url => '/main/bencher',
     log => 1,
+    pass_cmdline_object => 1,
 )->run;
 
 # ABSTRACT: A benchmark framework (CLI)
