@@ -1015,19 +1015,30 @@ sub bencher {
     if ($action eq 'list-datasets') {
         return [200, "OK", undef] unless $parsed->{datasets};
         my @res;
+        my $has_summary = 0;
         for my $ds (@{ $parsed->{datasets} }) {
             if ($args{detail}) {
-                push @res, {
+                my $rec = {
                     seq      => $ds->{seq},
                     name     => $ds->{name},
                     tags     => join(", ", @{ $ds->{tags} // []}),
                 };
+                if (defined $ds->{summary}) {
+                    $has_summary = 1;
+                    $rec->{summary} = $ds->{summary};
+                }
+                push @res, $rec;
             } else {
                 push @res, $ds->{name};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name tags/]
+        $resmeta{'table.fields'} = [
+            'seq',
+            'name',
+            ('summary') x $has_summary,
+            'tags',
+        ]
             if $args{detail};
         return [200, "OK", \@res, \%resmeta];
     }
@@ -1038,9 +1049,10 @@ sub bencher {
 
     if ($action eq 'list-participants') {
         my @res;
+        my $has_summary = 0;
         for my $p (@{ $parsed->{participants} }) {
             if ($args{detail}) {
-                push @res, {
+                my $rec = {
                     seq      => $p->{seq},
                     type     => $p->{type},
                     name     => $p->{name},
@@ -1049,12 +1061,27 @@ sub bencher {
                     cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
                     tags     => join(", ", @{$p->{tags} // []}),
                 };
+                if (defined $p->{summary}) {
+                    $has_summary = 1;
+                    $rec->{summary} = $p->{summary};
+
+                }
+                push @res, $rec;
             } else {
                 push @res, $p->{name};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq type name module function cmdline tags/]
+        $resmeta{'table.fields'} = [
+            'seq',
+            'type',
+            'name',
+            ('summary') x $has_summary,
+            'module',
+            'function',
+            'cmdline',
+            'tags',
+        ]
             if $args{detail};
         return [200, "OK", \@res, \%resmeta];
     }
