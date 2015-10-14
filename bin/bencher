@@ -365,14 +365,40 @@ sub _gen_items {
 
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
     my $i = -1;
+  ITER:
     while (my $h = $iter->()) {
         $log->tracef("iter returns: %s", $h);
         $i++;
         my $item_name;
 
         my $p = _find_record_by_seq($participants, $h->{participant});
-        my $ds; $ds = _find_record_by_seq($datasets, $h->{dataset})
-            if exists $h->{dataset};
+        my $ds;
+
+        if (exists $h->{dataset}) {
+            $ds = _find_record_by_seq($datasets, $h->{dataset});
+            # filter first
+            if ($ds->{participant_tags}) {
+                my $included = 0;
+              INCTAG:
+                for my $tag (@{ $ds->{participant_tags} }) {
+                    if ($tag =~ /\&/) {
+                        for my $simpletag (split /\s*&\s*/, $tag) {
+                            unless (grep {$simpletag eq $_} @{ $p->{tags} // [] }) {
+                                next INCTAG;
+                            }
+                        }
+                        $included++;
+                        last INCTAG;
+                    } else {
+                        if (grep {$tag eq $_} @{ $p->{tags} // [] }) {
+                            $included++;
+                            last INCTAG;
+                        }
+                    }
+                }
+                next ITER unless $included;
+            }
+        }
 
         {
             # convert participant's & dataset index to name temporarily, for
