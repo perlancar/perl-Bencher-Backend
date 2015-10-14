@@ -9,7 +9,7 @@ use warnings;
 use Log::Any::IfLOG '$log';
 
 use Data::Dmp;
-use List::MoreUtils qw(minmax uniq);
+use List::MoreUtils qw(firstidx minmax uniq);
 use Perinci::CmdLine::Any;
 
 our %SPEC;
@@ -1163,10 +1163,11 @@ sub bencher {
             },
             "silent",
         );
-        my $res = [];
+
+        my $envres = [200, "OK", []];
         for my $seq (sort {$a<=>$b} keys %$tres) {
             my $it = _find_record_by_seq($items, $seq);
-            push @$res, {
+            push @{$envres->[2]}, {
                 seq     => $seq,
                 name    => $it->{name},
                 time    => $tres->{$seq}{result}{num},
@@ -1175,17 +1176,34 @@ sub bencher {
                 errors  => $tres->{$seq}{result}{errors}[0],
             };
         }
+        $envres->[3]{'table.fields'} =
+            [qw/seq name rate time samples errors/];
 
       FORMAT:
         {
             my $r = $args{-cmdline_r};
             last unless $r && ($r->{format} // 'text') =~ /text/;
 
+            my $ff = $envres->[3]{'table.fields'};
+
+            # for module_startup mode: remove 'rate', add 'mod_overhead_time'
+            if ($args{module_startup}) {
+                my $rit_baseline = _find_record_by_seq($envres->[2], 0);
+                for my $rit (@{$envres->[2]}) {
+                    delete $rit->{rate};
+                    if ($rit_baseline) {
+                        $rit->{mod_overhead_time} = $rit->{time} - $rit_baseline->{time};
+                    }
+                }
+                splice @$ff, (firstidx {$_ eq 'rate'} @$ff), 1;
+                splice @$ff, (firstidx {$_ eq 'time'} @$ff)+1, 0, "mod_overhead_time";
+            }
+
             # sort by default from slowest to fastest
-            $res = [sort {$b->{time} <=> $a->{time}} @$res];
+            $envres->[2] = [sort {$b->{time} <=> $a->{time}} @{$envres->[2]}];
 
             # pick an appropriate time unit & format the time
-            my ($min, $max) = minmax(map {$_->{time}} @$res);
+            my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
 
             my ($unit, $factor);
             if ($max <= 1.5e-6) {
@@ -1200,18 +1218,21 @@ sub bencher {
             }
 
             if ($unit) {
-                for my $rit (@$res) {
+                for my $rit (@{$envres->[2]}) {
                     # XXX format number of decimal digits of 'time' and 'rate'
                     # based on sigma
                     $rit->{time} = sprintf(
                         "%.5f%s", $rit->{time} * $factor, $unit);
+                    if (exists $rit->{mod_overhead_time}) {
+                        $rit->{mod_overhead_time} = sprintf(
+                            "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
+                    }
                 }
             }
-        }
 
-        my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name rate time samples errors/];
-        return [200, "OK", $res, \%resmeta];
+        } # FORMAT
+
+        return $envres;
     }
 
     [304,"No action"];
