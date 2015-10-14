@@ -41,7 +41,7 @@ sub _find_record_by_seq {
     undef;
 }
 
-sub _filter_records_by_name_or_seq {
+sub _filter_records {
     my %args = @_;
 
     my $recs = $args{records};
@@ -49,6 +49,8 @@ sub _filter_records_by_name_or_seq {
     my $exclude = $args{exclude};
     my $include_pattern = $args{include_pattern};
     my $exclude_pattern = $args{exclude_pattern};
+    my $include_tags = $args{include_tags};
+    my $exclude_tags = $args{exclude_tags};
 
     my $frecs = [];
 
@@ -89,6 +91,44 @@ sub _filter_records_by_name_or_seq {
             next REC if $rec->{seq} =~ /$exclude_pattern/i ||
                 $rec->{name} =~ /$exclude_pattern/i;
         }
+        if ($include_tags && @$include_tags) {
+            my $included;
+          INCTAG:
+            for my $tag (@$include_tags) {
+                if ($tag =~ /&/) {
+                    $included = 1;
+                    for my $simpletag (split /\s*&\s*/, $tag) {
+                        unless (grep {$_ eq $simpletag} @{ $rec->{tags} // [] }) {
+                            $included = 0;
+                            next REC;
+                        }
+                    }
+                    last INCTAG;
+                } else {
+                    if (grep {$_ eq $tag} @{ $rec->{tags} // [] }) {
+                        $included++;
+                        last INCTAG;
+                    }
+                }
+            }
+            next REC unless $included;
+        }
+        if ($exclude_tags && @$exclude_tags) {
+          EXCTAG:
+            for my $tag (@$exclude_tags) {
+                if ($tag =~ /&/) {
+                    for my $simpletag (split /\s*&\s*/, $tag) {
+                        unless (grep {$_ eq $simpletag} @{ $rec->{tags} // [] }) {
+                            next EXCTAG;
+                        }
+                    }
+                    next REC;
+                } else {
+                    next REC if grep {$_ eq $tag} @{ $rec->{tags} // [] };
+                }
+            }
+        }
+
         push @$frecs, $rec;
     }
 
@@ -244,19 +284,23 @@ sub _parse_scenario {
         } @{ $parsed->{participants} }];
     }
 
-    $parsed->{participants} = _filter_records_by_name_or_seq(
+    $parsed->{participants} = _filter_records(
         records => $parsed->{participants},
         include => $pargs->{include_participants},
         exclude => $pargs->{exclude_participants},
         include_pattern => $pargs->{include_participant_pattern},
         exclude_pattern => $pargs->{exclude_participant_pattern},
+        include_tags => $pargs->{include_participant_tags},
+        exclude_tags => $pargs->{exclude_participant_tags},
     );
-    $parsed->{datasets} = _filter_records_by_name_or_seq(
+    $parsed->{datasets} = _filter_records(
         records => $parsed->{datasets},
         include => $pargs->{include_datasets},
         exclude => $pargs->{exclude_datasets},
         include_pattern => $pargs->{include_dataset_pattern},
         exclude_pattern => $pargs->{exclude_dataset_pattern},
+        include_tags => $pargs->{include_dataset_tags},
+        exclude_tags => $pargs->{exclude_dataset_tags},
     );
 
     $parsed;
@@ -407,7 +451,7 @@ sub _gen_items {
         };
     }
 
-    $parsed->{items} = _filter_records_by_name_or_seq(
+    $parsed->{items} = _filter_records(
         records => $parsed->{items},
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
@@ -463,6 +507,36 @@ sub _complete_participant {
     );
 }
 
+sub _complete_participant_tags {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+
+    my %tags;
+    for my $p (@{ $parsed->{participants} }) {
+        if ($p->{tags}) {
+            $tags{$_}++ for @{ $p->{tags} };
+        }
+    }
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => [keys %tags],
+    );
+}
+
 sub _complete_dataset {
     my %args = @_;
     my $word    = $args{word} // '';
@@ -483,6 +557,36 @@ sub _complete_dataset {
     Complete::Util::complete_array_elem(
         word  => $word,
         array => [map {($_->{seq}, $_->{name})} @{$parsed->{datasets}}],
+    );
+}
+
+sub _complete_dataset_tags {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+
+    my %tags;
+    for my $p (@{ $parsed->{datasets} }) {
+        if ($p->{tags}) {
+            $tags{$_}++ for @{ $p->{tags} };
+        }
+    }
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => [keys %tags],
     );
 }
 
@@ -694,6 +798,19 @@ _
             schema => ['re*'],
             tags => ['category:filtering'],
         },
+        include_participant_tags => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include participants whose tag matches this',
+            'summary.alt.plurality.singular' => 'Add a tag to participants include tag list',
+            description => <<'_',
+
+You can specify `A & B` to include participants that have _both_ tags A and B.
+
+_
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_participant_tags,
+            tags => ['category:filtering'],
+        },
         exclude_participants => {
             'x.name.is_plural' => 1,
             summary => 'Exclude participants whose seq/name matches this',
@@ -705,6 +822,19 @@ _
         exclude_participant_pattern => {
             summary => 'Exclude participants matching this regex pattern',
             schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+        exclude_participant_tags => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude participants whose tag matches this',
+            'summary.alt.plurality.singular' => 'Add a tag to participants exclude tag list',
+            description => <<'_',
+
+You can specify `A & B` to exclude participants that have _both_ tags A and B.
+
+_
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_participant_tags,
             tags => ['category:filtering'],
         },
 
@@ -761,6 +891,32 @@ _
             schema => 're*',
             tags => ['category:filtering'],
         },
+        include_dataset_tags => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include datasets whose tag matches this',
+            'summary.alt.plurality.singular' => 'Add a tag to dataset include tag list',
+            description => <<'_',
+
+You can specify `A & B` to include datasets that have _both_ tags A and B.
+
+_
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_dataset_tags,
+            tags => ['category:filtering'],
+        },
+        exclude_dataset_tags => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude datasets whose tag matches this',
+            'summary.alt.plurality.singular' => 'Add a tag to dataset exclude tag list',
+            description => <<'_',
+
+You can specify `A & B` to exclude datasets that have _both_ tags A and B.
+
+_
+            schema => ['array*', of=>'str*'],
+            element_completion => \&_complete_dataset_tags,
+            tags => ['category:filtering'],
+        },
 
         on_failure => {
             summary => "What to do when command fails or Perl code dies",
@@ -804,13 +960,14 @@ sub bencher {
                 push @res, {
                     seq      => $ds->{seq},
                     name     => $ds->{name},
+                    tags     => join(", ", @{ $ds->{tags} // []}),
                 };
             } else {
                 push @res, $ds->{name};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name/]
+        $resmeta{'table.fields'} = [qw/seq name tags/]
             if $args{detail};
         return [200, "OK", \@res, \%resmeta];
     }
@@ -830,13 +987,14 @@ sub bencher {
                     function => $p->{function},
                     module   => $p->{module},
                     cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
+                    tags     => join(", ", @{$p->{tags} // []}),
                 };
             } else {
                 push @res, $p->{name};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq type name module function cmdline/]
+        $resmeta{'table.fields'} = [qw/seq type name module function cmdline tags/]
             if $args{detail};
         return [200, "OK", \@res, \%resmeta];
     }
