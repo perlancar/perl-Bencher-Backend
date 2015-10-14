@@ -1,5 +1,14 @@
 Revision history for Bencher
 
+0.04    2015-10-14 (PERLANCAR)
+
+	- Observe dataset spec's properties: {include,exclude}_participant_tags.
+
+	- Add options: --{include,exclude}-{participant,dataset}-tag.
+
+        - Some other fixes & tweaks.
+
+
 0.03    2015-10-11 (PERLANCAR)
 
 	- [Incompatible change] No longer subtract perl baseline time from
