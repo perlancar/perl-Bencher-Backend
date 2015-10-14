@@ -177,6 +177,7 @@ sub _parse_scenario {
 
     my $unparsed = $args{scenario};
     my $pargs = $args{parent_args};
+    my $apply_filters = $args{apply_filters} // 1;
 
     my $parsed = {};
 
@@ -251,37 +252,39 @@ sub _parse_scenario {
     _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
 
     # filter by include_modules & exclude_modules
-    if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
-        $parsed->{modules} = [grep {
-            $_ ~~ @{ $pargs->{include_modules} }
-        } @{ $parsed->{modules} }];
-        $parsed->{participants} = [grep {
-            !defined($_->{module}) || $_->{module} ~~ @{ $pargs->{include_modules} }
-        } @{ $parsed->{participants} }];
-    }
-    if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
-        $parsed->{modules} = [grep {
-            !($_ ~~ @{ $pargs->{exclude_modules} })
-        } @{ $parsed->{modules} }];
-        $parsed->{participants} = [grep {
-            !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
-        } @{ $parsed->{participants} }];
-    }
-    if ($pargs->{include_module_pattern}) {
-        $parsed->{modules} = [grep {
-            $_ =~ qr/$pargs->{include_module_pattern}/i
-        } @{ $parsed->{modules} }];
-        $parsed->{participants} = [grep {
-            !defined($_->{module}) || $_->{module} =~ qr/$pargs->{include_module_pattern}/i
-        } @{ $parsed->{participants} }];
-    }
-    if ($pargs->{exclude_module_pattern}) {
-        $parsed->{modules} = [grep {
-            $_ !~ qr/$pargs->{exclude_module_pattern}/i
-        } @{ $parsed->{modules} }];
-        $parsed->{participants} = [grep {
-            !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
-        } @{ $parsed->{participants} }];
+    if ($apply_filters) {
+        if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
+            $parsed->{modules} = [grep {
+                $_ ~~ @{ $pargs->{include_modules} }
+            } @{ $parsed->{modules} }];
+            $parsed->{participants} = [grep {
+                !defined($_->{module}) || $_->{module} ~~ @{ $pargs->{include_modules} }
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
+            $parsed->{modules} = [grep {
+                !($_ ~~ @{ $pargs->{exclude_modules} })
+            } @{ $parsed->{modules} }];
+            $parsed->{participants} = [grep {
+                !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{include_module_pattern}) {
+            $parsed->{modules} = [grep {
+                $_ =~ qr/$pargs->{include_module_pattern}/i
+            } @{ $parsed->{modules} }];
+            $parsed->{participants} = [grep {
+                !defined($_->{module}) || $_->{module} =~ qr/$pargs->{include_module_pattern}/i
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{exclude_module_pattern}) {
+            $parsed->{modules} = [grep {
+                $_ !~ qr/$pargs->{exclude_module_pattern}/i
+            } @{ $parsed->{modules} }];
+            $parsed->{participants} = [grep {
+                !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
+            } @{ $parsed->{participants} }];
+        }
     }
 
     $parsed->{participants} = _filter_records(
@@ -292,7 +295,7 @@ sub _parse_scenario {
         exclude_pattern => $pargs->{exclude_participant_pattern},
         include_tags => $pargs->{include_participant_tags},
         exclude_tags => $pargs->{exclude_participant_tags},
-    );
+    ) if $apply_filters;
     $parsed->{datasets} = _filter_records(
         records => $parsed->{datasets},
         include => $pargs->{include_datasets},
@@ -301,7 +304,7 @@ sub _parse_scenario {
         exclude_pattern => $pargs->{exclude_dataset_pattern},
         include_tags => $pargs->{include_dataset_tags},
         exclude_tags => $pargs->{exclude_dataset_tags},
-    );
+    ) if $apply_filters;
 
     $parsed;
 }
@@ -313,6 +316,7 @@ sub _gen_items {
 
     my $parsed = $args{scenario};
     my $pargs  = $args{parent_args};
+    my $apply_filters = $args{apply_filters} // 1;
 
     $parsed->{items} = [];
     my @permute;
@@ -517,7 +521,7 @@ sub _gen_items {
         exclude => $pargs->{exclude_items},
         include_pattern => $pargs->{include_item_pattern},
         exclude_pattern => $pargs->{exclude_item_pattern},
-    );
+    ) if $apply_filters;
     [200];
 }
 
@@ -535,7 +539,11 @@ sub _complete_module {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
@@ -558,7 +566,11 @@ sub _complete_participant {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
@@ -581,7 +593,11 @@ sub _complete_participant_tags {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
 
     my %tags;
     for my $p (@{ $parsed->{participants} }) {
@@ -611,7 +627,11 @@ sub _complete_dataset {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
 
     require Complete::Util;
     Complete::Util::complete_array_elem(
@@ -634,7 +654,11 @@ sub _complete_dataset_tags {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
 
     my %tags;
     for my $p (@{ $parsed->{datasets} }) {
@@ -664,8 +688,16 @@ sub _complete_item {
 
     my $args = $res->[2];
     my $unparsed = _get_scenario(parent_args=>$args);
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>$args);
-    $res = _gen_items(scenario=>$parsed, parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
+    $res = _gen_items(
+        scenario=>$parsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
     return undef unless $res->[0] == 200;
 
     require Complete::Util;
@@ -823,7 +855,7 @@ _
             summary => 'Only include modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to include list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_module,
+            element_completion => sub { _complete_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_module_pattern => {
@@ -836,7 +868,7 @@ _
             summary => 'Exclude modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to exclude list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_module,
+            element_completion => sub { _complete_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_module_pattern => {
@@ -850,7 +882,7 @@ _
             summary => 'Only include participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant to include list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_participant,
+            element_completion => sub { _complete_participant(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_participant_pattern => {
@@ -868,7 +900,7 @@ You can specify `A & B` to include participants that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_participant_tags,
+            element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_participants => {
@@ -876,7 +908,7 @@ _
             summary => 'Exclude participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant to include list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_participant,
+            element_completion => sub { _complete_participant(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_participant_pattern => {
@@ -894,7 +926,7 @@ You can specify `A & B` to exclude participants that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_participant_tags,
+            element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
 
@@ -903,7 +935,7 @@ _
             summary => 'Only include items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item to include list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_item,
+            element_completion => sub { _complete_item(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_item_pattern => {
@@ -916,7 +948,7 @@ _
             summary => 'Exclude items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item to exclude list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_item,
+            element_completion => sub { _complete_item(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_item_pattern => {
@@ -930,7 +962,7 @@ _
             summary => 'Only include datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset to include list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_dataset,
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_dataset_pattern => {
@@ -943,7 +975,7 @@ _
             summary => 'Exclude datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset to exclude list',
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_dataset,
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_dataset_pattern => {
@@ -961,7 +993,7 @@ You can specify `A & B` to include datasets that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_dataset_tags,
+            element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_dataset_tags => {
@@ -974,7 +1006,7 @@ You can specify `A & B` to exclude datasets that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>'str*'],
-            element_completion => \&_complete_dataset_tags,
+            element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
 
