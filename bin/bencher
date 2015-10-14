@@ -350,7 +350,7 @@ sub _gen_items {
         }
     } else {
         return [412, "Please load a scenario (-m, -f) or ".
-                    "specify at least one participant (-p)"]
+                    "include at least one participant (-p)"]
             unless @{$parsed->{participants}};
         $participants = $parsed->{participants};
         $datasets = $parsed->{datasets} if $parsed->{datasets};
@@ -396,7 +396,11 @@ sub _gen_items {
                         }
                     }
                 }
-                next ITER unless $included;
+                unless ($included) {
+                    $log->tracef("skipped dataset by tags (dataset:%s vs participant:%s)",
+                                 $ds->{participant_tags}, $p->{tags});
+                    next ITER;
+                }
             }
         }
 
@@ -1058,10 +1062,12 @@ sub bencher {
         if ($on_failure eq 'skip') {
             my $fitems = [];
             for my $it (@{ $parsed->{items} }) {
+                $log->tracef("Testing code for item #%d (%s) ...",
+                             $it->{seq}, $it->{name});
                 eval { $it->{code}->() };
                 if ($@) {
                     warn "Skipping item #$it->{seq} ($it->{name}) ".
-                        "due to failure\n";
+                        "due to failure: $@\n";
                     next;
                 }
                 push @$fitems, $it;
