@@ -1229,7 +1229,8 @@ Perinci::CmdLine::Any->new(
 
 =head1 SYNOPSIS
 
-List all scenario modules (Bencher::Scenario::*):
+List all scenario modules (Bencher::Scenario::*) installed locally on your
+system:
 
  % bencher --list-scenario-modules
  % bencher -L
