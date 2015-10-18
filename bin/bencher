@@ -182,7 +182,8 @@ sub _parse_scenario {
     my $parsed = {};
 
     $parsed->{participants} = [];
-    $parsed->{on_failure} = $unparsed->{on_failure};
+    $parsed->{on_failure}     = $unparsed->{on_failure};
+    $parsed->{module_startup} = $unparsed->{module_startup};
     $parsed->{modules} = [];
     my $i = -1;
     for my $p0 (@{ $unparsed->{participants} }) {
@@ -326,8 +327,9 @@ sub _gen_items {
 
     my $participants;
     my $datasets;
+    my $module_startup = $pargs->{module_startup} // $parsed->{module_startup};
 
-    if ($pargs->{module_startup}) {
+    if ($module_startup) {
         return [412, "There are no modules to benchmark ".
                     "the startup overhead of"]
             unless @{$parsed->{modules}};
@@ -1034,6 +1036,7 @@ sub bencher {
     }
 
     my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>\%args);
+    my $module_startup = $args{module_startup} // $parsed->{module_startup};
 
     if ($action eq 'list-datasets') {
         return [200, "OK", undef] unless $parsed->{datasets};
@@ -1187,7 +1190,7 @@ sub bencher {
             my $ff = $envres->[3]{'table.fields'};
 
             # for module_startup mode: remove 'rate', add 'mod_overhead_time'
-            if ($args{module_startup}) {
+            if ($module_startup) {
                 my $rit_baseline = _find_record_by_seq($envres->[2], 0);
                 for my $rit (@{$envres->[2]}) {
                     delete $rit->{rate};
