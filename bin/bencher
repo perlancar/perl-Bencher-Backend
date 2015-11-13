@@ -1164,8 +1164,15 @@ sub bencher {
         require Benchmark::Dumb;
         require Module::Load;
 
-        for my $mod (@{ $parsed->{modules} }) {
-            Module::Load::load($mod);
+        # load all modules
+        {
+            my %seen;
+            for my $p (@{ $parsed->{participants} }) {
+                my $mod = $p->{module};
+                next if !$mod || $seen{$mod}++;
+                $log->tracef("Loading module: %s", $mod);
+                Module::Load::load($mod);
+            }
         }
 
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
