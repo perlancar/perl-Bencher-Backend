@@ -51,11 +51,13 @@ sub _filter_records {
     my $exclude_pattern = $args{exclude_pattern};
     my $include_tags = $args{include_tags};
     my $exclude_tags = $args{exclude_tags};
+    my $aibdf = $args{apply_include_by_default_filter} // 1;
 
     my $frecs = [];
 
   REC:
     for my $rec (@$recs) {
+        my $explicitly_included;
         if ($include && @$include) {
             my $included;
           INC:
@@ -73,6 +75,7 @@ sub _filter_records {
                 }
             }
             next REC unless $included;
+            $explicitly_included++;
         }
         if ($exclude && @$exclude) {
             for my $exc (@$exclude) {
@@ -86,6 +89,7 @@ sub _filter_records {
         if ($include_pattern) {
             next REC unless $rec->{seq} =~ /$include_pattern/i ||
                 $rec->{name} =~ /$include_pattern/i;
+            $explicitly_included++;
         }
         if ($exclude_pattern) {
             next REC if $rec->{seq} =~ /$exclude_pattern/i ||
@@ -112,6 +116,7 @@ sub _filter_records {
                 }
             }
             next REC unless $included;
+            $explicitly_included++;
         }
         if ($exclude_tags && @$exclude_tags) {
           EXCTAG:
@@ -127,6 +132,11 @@ sub _filter_records {
                     next REC if grep {$_ eq $tag} @{ $rec->{tags} // [] };
                 }
             }
+        }
+
+        unless ($explicitly_included || !$aibdf) {
+            next REC if defined($rec->{include_by_default}) &&
+                !$rec->{include_by_default};
         }
 
         push @$frecs, $rec;
@@ -178,6 +188,7 @@ sub _parse_scenario {
     my $unparsed = $args{scenario};
     my $pargs = $args{parent_args};
     my $apply_filters = $args{apply_filters} // 1;
+    my $aibdf = $args{apply_include_by_default_filter} // 1; # skip items that have include_by_default=0
 
     my $parsed = {};
 
@@ -189,6 +200,7 @@ sub _parse_scenario {
     for my $p0 (@{ $unparsed->{participants} }) {
         $i++;
         my $p = { %$p0, seq=>$i };
+        $p->{include_by_default} //= 1;
         $p->{type} //= do {
             if ($p->{cmdline}) {
                 'command';
@@ -236,6 +248,7 @@ sub _parse_scenario {
         for my $ds0 (@{ $unparsed->{datasets} }) {
             $i++;
             my $ds = { %$ds0, seq=>$i };
+            $ds->{include_by_default} //= 1;
 
             # try to come up with a default name for the dataset
             unless (defined($ds->{name})) {
@@ -296,6 +309,7 @@ sub _parse_scenario {
         exclude_pattern => $pargs->{exclude_participant_pattern},
         include_tags => $pargs->{include_participant_tags},
         exclude_tags => $pargs->{exclude_participant_tags},
+        apply_include_by_default_filter => $aibdf,
     ) if $apply_filters;
     $parsed->{datasets} = _filter_records(
         records => $parsed->{datasets},
@@ -305,6 +319,7 @@ sub _parse_scenario {
         exclude_pattern => $pargs->{exclude_dataset_pattern},
         include_tags => $pargs->{include_dataset_tags},
         exclude_tags => $pargs->{exclude_dataset_tags},
+        apply_include_by_default_filter => $aibdf,
     ) if $apply_filters;
 
     $parsed;
@@ -1035,7 +1050,14 @@ sub bencher {
         return [200, "OK", $unparsed];
     }
 
-    my $parsed = _parse_scenario(scenario=>$unparsed, parent_args=>\%args);
+    my $aibdf;
+    $aibdf = 0 if $action =~ /\A(list-(datasets|participants))\z/;
+
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>\%args,
+        apply_include_by_default_filter => $aibdf,
+    );
     my $module_startup = $args{module_startup} // $parsed->{module_startup};
 
     if ($action eq 'list-datasets') {
@@ -1046,6 +1068,7 @@ sub bencher {
             if ($args{detail}) {
                 my $rec = {
                     seq      => $ds->{seq},
+                    include_by_default => $ds->{include_by_default},
                     name     => $ds->{name},
                     tags     => join(", ", @{ $ds->{tags} // []}),
                 };
@@ -1061,6 +1084,7 @@ sub bencher {
         my %resmeta;
         $resmeta{'table.fields'} = [
             'seq',
+            'include_by_default',
             'name',
             ('summary') x $has_summary,
             'tags',
@@ -1081,6 +1105,7 @@ sub bencher {
                 my $rec = {
                     seq      => $p->{seq},
                     type     => $p->{type},
+                    include_by_default => $p->{include_by_default},
                     name     => $p->{name},
                     function => $p->{function},
                     module   => $p->{module},
@@ -1101,6 +1126,7 @@ sub bencher {
         $resmeta{'table.fields'} = [
             'seq',
             'type',
+            'include_by_default',
             'name',
             ('summary') x $has_summary,
             'module',

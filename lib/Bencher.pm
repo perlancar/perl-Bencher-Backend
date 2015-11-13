@@ -65,6 +65,8 @@ An example scenario (from C<Bench::Scenario::Example>):
  };
  1;
 
+=head2 Participants
+
 B<participants> (array) lists Perl code (or external command) that we want to
 benchmark. Instead of just list of coderefs like what L<Benchmark> expects, you
 can use C<fcall_template> instead. It is a string containing a function call
@@ -86,15 +88,24 @@ Aside from C<fcall_template>, you can also use C<code_template> (a string
 containing arbitrary code) or C<code> (a subroutine reference, just like what
 you would provide to the Benchmark module).
 
+Other properties you can add to a participant: C<include_by_default> (bool,
+default true, can be set to false if you want to exclude participant by default
+when running benchmark, unless the participant is explicitly included).
+
 Or, if you are benchmarking commands, you specify C<cmdline> (array or strings,
 or strings) instead. An array cmdline will not use shell, while the string
 version will use shell. See L<Bencher::Scenario::Interpreters>.
 
+=head2 Datasets
+
 B<datasets> (array) lists the function inputs (or command-line arguments). You
 can C<name> each dataset too, to be able to refer to it more easily.
 
-You can instruct the B<bencher> CLI to filter wanted/unwanted modules,
-participants, or datasets before benchmarking.
+Other properties you can add to a dataset: C<include_by_default> (bool, default
+true, can be set to false if you want to exclude dataset by default when running
+benchmark, unless the dataset is explicitly included).
+
+=head3 Other properties
 
 Other known scenario properties (keys):
 
