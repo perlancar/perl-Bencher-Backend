@@ -1,5 +1,10 @@
 Revision history for Bencher
 
+0.09    2015-11-13 (PERLANCAR)
+
+	- Only load modules from participants that are included.
+
+
 0.08    2015-11-13 (PERLANCAR)
 
 	- Introduce include_by_default property to dataset & participant.
