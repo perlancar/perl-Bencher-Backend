@@ -179,21 +179,6 @@ sub _get_scenario {
     $scenario;
 }
 
-$SPEC{parse_scenario} = {
-    summary => 'Parse scenario (fill in default values, etc)',
-    args => {
-        scenario => {
-            summary => 'Unparsed scenario',
-            schema  => 'hash*',
-        },
-    },
-};
-sub parse_scenario {
-    my %args = @_;
-
-    _parse_scenario(scenario => $args{scenario}, parent_args => {});
-}
-
 sub _parse_scenario {
     use experimental 'smartmatch';
 
@@ -209,7 +194,6 @@ sub _parse_scenario {
     $parsed->{participants} = [];
     $parsed->{on_failure}     = $unparsed->{on_failure};
     $parsed->{module_startup} = $unparsed->{module_startup};
-    $parsed->{modules} = [];
     my $i = -1;
     for my $p0 (@{ $unparsed->{participants} }) {
         $i++;
@@ -230,11 +214,6 @@ sub _parse_scenario {
                 $p->{module}   = $1;
                 $p->{function} = $3;
             }
-        }
-
-        if ($p->{module}) {
-            push @{ $parsed->{modules} }, $p->{module}
-                unless $p->{module} ~~ @{ $parsed->{modules} };
         }
 
         # try to come up with a default name for the participant
@@ -279,38 +258,47 @@ sub _parse_scenario {
     _uniquify_names($parsed->{participants});
     _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
 
-    # filter by include_modules & exclude_modules
+    # filter by include/exclude module/function
     if ($apply_filters) {
         if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
-            $parsed->{modules} = [grep {
-                $_ ~~ @{ $pargs->{include_modules} }
-            } @{ $parsed->{modules} }];
             $parsed->{participants} = [grep {
-                !defined($_->{module}) || $_->{module} ~~ @{ $pargs->{include_modules} }
+                defined($_->{module}) && $_->{module} ~~ @{ $pargs->{include_modules} }
             } @{ $parsed->{participants} }];
         }
         if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
-            $parsed->{modules} = [grep {
-                !($_ ~~ @{ $pargs->{exclude_modules} })
-            } @{ $parsed->{modules} }];
             $parsed->{participants} = [grep {
                 !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
             } @{ $parsed->{participants} }];
         }
         if ($pargs->{include_module_pattern}) {
-            $parsed->{modules} = [grep {
-                $_ =~ qr/$pargs->{include_module_pattern}/i
-            } @{ $parsed->{modules} }];
             $parsed->{participants} = [grep {
-                !defined($_->{module}) || $_->{module} =~ qr/$pargs->{include_module_pattern}/i
+                defined($_->{module}) && $_->{module} =~ qr/$pargs->{include_module_pattern}/i
             } @{ $parsed->{participants} }];
         }
         if ($pargs->{exclude_module_pattern}) {
-            $parsed->{modules} = [grep {
-                $_ !~ qr/$pargs->{exclude_module_pattern}/i
-            } @{ $parsed->{modules} }];
             $parsed->{participants} = [grep {
                 !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
+            } @{ $parsed->{participants} }];
+        }
+
+        if ($pargs->{include_functions} && @{ $pargs->{include_functions} }) {
+            $parsed->{participants} = [grep {
+                defined($_->{function}) && $_->{function} ~~ @{ $pargs->{include_functions} }
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{exclude_functions} && @{ $pargs->{exclude_functions} }) {
+            $parsed->{participants} = [grep {
+                !defined($_->{function}) || !($_->{function} ~~ @{ $pargs->{exclude_functions} })
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{include_function_pattern}) {
+            $parsed->{participants} = [grep {
+                defined($_->{function}) && $_->{function} =~ qr/$pargs->{include_function_pattern}/i
+            } @{ $parsed->{participants} }];
+        }
+        if ($pargs->{exclude_function_pattern}) {
+            $parsed->{participants} = [grep {
+                !defined($_->{function}) || $_->{function} !~ qr/$pargs->{exclude_function_pattern}/i
             } @{ $parsed->{participants} }];
         }
     }
@@ -339,6 +327,34 @@ sub _parse_scenario {
     $parsed;
 }
 
+sub _get_participant_modules {
+    use experimental 'smartmatch';
+
+    my $parsed = shift;
+
+    my @modules;
+    for my $p (@{ $parsed->{participants} }) {
+        next unless defined $p->{module};
+        push @modules, $p->{module} unless $p->{module} ~~ @modules;
+    }
+
+    @modules;
+}
+
+sub _get_participant_functions {
+    use experimental 'smartmatch';
+
+    my $parsed = shift;
+
+    my @modules;
+    for my $p (@{ $parsed->{participants} }) {
+        next unless defined $p->{function};
+        push @modules, $p->{function} unless $p->{function} ~~ @modules;
+    }
+
+    @modules;
+}
+
 sub _gen_items {
     require Permute::Named::Iter;
 
@@ -359,9 +375,11 @@ sub _gen_items {
     my $module_startup = $pargs->{module_startup} // $parsed->{module_startup};
 
     if ($module_startup) {
+        my @modules = _get_participant_modules($parsed);
+
         return [412, "There are no modules to benchmark ".
                     "the startup overhead of"]
-            unless @{$parsed->{modules}};
+            unless @modules;
 
         {
             # push perl as base-line
@@ -373,7 +391,7 @@ sub _gen_items {
             };
 
             my $i = 0;
-            for my $mod (@{ $parsed->{modules} }) {
+            for my $mod (@modules) {
                 $i++;
                 push @$participants, {
                     seq  => $i,
@@ -578,10 +596,41 @@ sub _complete_module {
         apply_filters => $args{apply_filters},
     );
 
+    my @modules = _get_participant_modules($parsed);
+
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => $parsed->{modules},
+        array => \@modules,
+    );
+}
+
+sub _complete_function {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+
+    my $args = $res->[2];
+    my $unparsed = _get_scenario(parent_args=>$args);
+    my $parsed = _parse_scenario(
+        scenario=>$unparsed,
+        parent_args=>$args,
+        apply_filters => $args{apply_filters},
+    );
+
+    my @functions = _get_participant_functions($parsed);
+
+    require Complete::Util;
+    Complete::Util::complete_array_elem(
+        word  => $word,
+        array => \@functions,
     );
 }
 
@@ -872,6 +921,7 @@ _
             schema => 'bool*',
             cmdline_aliases => {l=>{}},
         },
+
         include_modules => {
             'x.name.is_plural' => 1,
             summary => 'Only include modules specified in this list',
@@ -895,6 +945,33 @@ _
         },
         exclude_module_pattern => {
             summary => 'Exclude module(s) matching this regex pattern',
+            schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+
+        include_functions => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include functions specified in this list',
+            'summary.alt.plurality.singular' => 'Add function to include list',
+            schema => ['array*', of=>'str*'],
+            element_completion => sub { _complete_function(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        include_function_pattern => {
+            summary => 'Only include functions matching this regex pattern',
+            schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+        exclude_functions => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude functions specified in this list',
+            'summary.alt.plurality.singular' => 'Add function to exclude list',
+            schema => ['array*', of=>'str*'],
+            element_completion => sub { _complete_function(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_function_pattern => {
+            summary => 'Exclude function(s) matching this regex pattern',
             schema => ['re*'],
             tags => ['category:filtering'],
         },
@@ -1108,7 +1185,8 @@ sub bencher {
     }
 
     if ($action eq 'list-participant-modules') {
-        return [200, "OK", $parsed->{modules}];
+        my @modules = _get_participant_modules($parsed);
+        return [200, "OK", \@modules];
     }
 
     if ($action eq 'list-participants') {
@@ -1181,9 +1259,8 @@ sub bencher {
         # load all modules
         {
             my %seen;
-            for my $p (@{ $parsed->{participants} }) {
-                my $mod = $p->{module};
-                next if !$mod || $seen{$mod}++;
+            my @modules = _get_participant_modules($parsed);
+            for my $mod (@modules) {
                 $log->tracef("Loading module: %s", $mod);
                 Module::Load::load($mod);
             }
@@ -1286,6 +1363,22 @@ sub bencher {
     }
 
     [304,"No action"];
+}
+
+$SPEC{parse_scenario} = {
+    v => 1.1,
+    summary => 'Parse scenario (fill in default values, etc)',
+    args => {
+        scenario => {
+            summary => 'Unparsed scenario',
+            schema  => 'hash*',
+        },
+    },
+};
+sub parse_scenario {
+    my %args = @_;
+
+    _parse_scenario(scenario => $args{scenario}, parent_args => {});
 }
 
 1;
