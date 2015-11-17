@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.11    2015-11-17 (PERLANCAR)
+
+        - [refactor] Move backend code from bin/bencher to lib/Bencher.pm so
+          it's reusable by other code.
+
+
 0.10    2015-11-14 (PERLANCAR)
 
         - Add options: --include-function, --exclude-function,
