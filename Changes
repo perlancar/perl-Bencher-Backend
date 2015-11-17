@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.10    2015-11-14 (PERLANCAR)
+
+        - Add options: --include-function, --exclude-function,
+          --include-function-pattern, --exclude-function-pattern.
+
+
 0.09    2015-11-13 (PERLANCAR)
 
 	- Only load modules from participants that are included.
