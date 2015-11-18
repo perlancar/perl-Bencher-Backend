@@ -791,6 +791,28 @@ sub _complete_item {
     );
 }
 
+my $_alias_spec_add_dataset = {
+    summary => 'Add a dataset',
+    code => sub {
+        require JSON;
+
+        my $args = shift;
+        push @{ $args->{datasets} },
+            JSON::decode_json($_[0]);
+    },
+};
+
+my $_alias_spec_add_participant = {
+    summary => 'Add a participant',
+    code => sub {
+        require JSON;
+
+        my $args = shift;
+        push @{ $args->{participants} },
+            JSON::decode_json($_[0]);
+    },
+};
+
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
@@ -829,16 +851,8 @@ _
             'x.name.is_plural' => 1,
             schema => ['array*', of=>'hash*'],
             cmdline_aliases => {
-                p => {
-                    summary => 'Add a participant',
-                    code => sub {
-                        require JSON;
-
-                        my $args = shift;
-                        push @{ $args->{participants} },
-                            JSON::decode_json($_[0]);
-                    },
-                }
+                participant => $_alias_spec_add_participant,
+                p => $_alias_spec_add_participant,
             },
         },
         datasets => {
@@ -846,16 +860,8 @@ _
             'x.name.is_plural' => 1,
             schema => ['array*', of=>'hash*'],
             cmdline_aliases => {
-                d => {
-                    summary => 'Add a dataset',
-                    code => sub {
-                        require JSON;
-
-                        my $args = shift;
-                        push @{ $args->{datasets} },
-                            JSON::decode_json($_[0]);
-                    },
-                },
+                dataset => $_alias_spec_add_dataset,
+                d => $_alias_spec_add_dataset,
             },
         },
         action => {
