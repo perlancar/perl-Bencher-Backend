@@ -1259,8 +1259,16 @@ sub bencher {
     }
 
     if ($action eq 'bench') {
+        my $return_resmeta =
+            $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
+            0 : 1;
+
         require Benchmark::Dumb;
+        require Devel::Platform::Info if $return_resmeta;
         require Module::Load;
+        require Sys::Load if $return_resmeta;
+
+        my $envres = [200, "OK", [], {}];
 
         # load all modules
         {
@@ -1289,6 +1297,10 @@ sub bencher {
             $items = $fitems;
         }
 
+        if ($return_resmeta) {
+            $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
+        }
+
         my $tres = Benchmark::Dumb::_timethese_guts(
             0,
             {
@@ -1297,7 +1309,6 @@ sub bencher {
             "silent",
         );
 
-        my $envres = [200, "OK", []];
         for my $seq (sort {$a<=>$b} keys %$tres) {
             my $it = _find_record_by_seq($items, $seq);
             push @{$envres->[2]}, {
@@ -1364,6 +1375,12 @@ sub bencher {
             }
 
         } # FORMAT
+
+        if ($return_resmeta) {
+            $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
+            $envres->[3]{'func.platform_info'} =
+                Devel::Platform::Info->new->get_info;
+        }
 
         return $envres;
     }
