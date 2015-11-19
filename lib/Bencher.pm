@@ -11,6 +11,7 @@ use Log::Any::IfLOG '$log';
 use Benchmark::Dumb qw(timethese);
 use Data::Dmp;
 use List::MoreUtils qw(firstidx minmax uniq);
+use Time::HiRes qw(time);
 
 our %SPEC;
 
@@ -1299,6 +1300,7 @@ sub bencher {
 
         if ($return_resmeta) {
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
+            $envres->[3]{'_time_start'} = time();
         }
 
         my $tres = Benchmark::Dumb::_timethese_guts(
@@ -1380,6 +1382,9 @@ sub bencher {
             $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
             $envres->[3]{'func.platform_info'} =
                 Devel::Platform::Info->new->get_info;
+            $envres->[3]{'func.elapsed_time'} =
+                time() - $envres->[3]{'_time_start'};
+            delete $envres->[3]{'_time_start'};
         }
 
         return $envres;
