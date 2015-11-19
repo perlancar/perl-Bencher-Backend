@@ -1,5 +1,14 @@
 Revision history for Bencher
 
+0.12    2015-11-19 (PERLANCAR)
+
+	- Add platform information (from Devel::Platform::Info and
+	  Sys::Load) in result metadata.
+
+	- [ux] Add --dataset (in addition to -d) and --participant (in
+	  addition to -p) to add dataset/participant.
+
+
 0.11    2015-11-17 (PERLANCAR)
 
         - [refactor] Move backend code from bin/bencher to lib/Bencher.pm so
