@@ -194,6 +194,7 @@ sub _parse_scenario {
 
     # normalize participants
     {
+        $parsed->{participants} = [];
         my $i = -1;
         for my $p0 (@{ $unparsed->{participants} }) {
             $i++;
