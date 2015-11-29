@@ -412,7 +412,7 @@ sub _gen_items {
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
 
-    if ($datasets) {
+    if ($datasets && @$datasets) {
         push @permute, "dataset", [map {$_->{seq}} @$datasets];
     }
     $log->debugf("permute: %s", \@permute);
