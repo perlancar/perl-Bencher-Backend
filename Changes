@@ -1,5 +1,12 @@
 Revision history for Bencher
 
+0.15    2015-11-29 (PERLANCAR)
+
+	- No functional changes.
+
+	- Tweak code for parsing scenario (copy all keys, reorganize code).
+
+
 0.14    2015-11-29 (PERLANCAR)
 
         - Some minor fixes.
