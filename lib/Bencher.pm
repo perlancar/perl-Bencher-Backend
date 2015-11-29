@@ -1272,6 +1272,8 @@ sub bencher {
             $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
             0 : 1;
 
+        $envres->[3]{'func.module_versions'}{perl} = $^V if $return_resmeta;
+
         my $code_load = sub {
             no strict 'refs';
             my $mod = shift;
