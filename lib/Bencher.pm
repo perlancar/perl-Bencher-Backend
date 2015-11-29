@@ -1264,24 +1264,37 @@ sub bencher {
     }
 
     if ($action eq 'bench') {
+        require Module::Load;
+
+        my $envres = [200, "OK", [], {}];
+
         my $return_resmeta =
             $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
             0 : 1;
 
-        require Benchmark::Dumb;
-        require Devel::Platform::Info if $return_resmeta;
-        require Module::Load;
-        require Sys::Load if $return_resmeta;
+        my $code_load = sub {
+            no strict 'refs';
+            my $mod = shift;
+            $log->tracef("Loading module: %s", $mod);
+            Module::Load::load($mod);
+            if ($return_resmeta) {
+                # we'll just use ${"$mod\::VERSION"} because we are already
+                # loading the module
+                $envres->[3]{'func.module_versions'}{$mod} =
+                    ${"$mod\::VERSION"};
+            }
+        };
 
-        my $envres = [200, "OK", [], {}];
+        $code_load->('Benchmark::Dumb');
+        $code_load->('Devel::Platform::Info') if $return_resmeta;
+        $code_load->('Sys::Load')             if $return_resmeta;
 
         # load all modules
         {
             my %seen;
             my @modules = _get_participant_modules($parsed);
             for my $mod (@modules) {
-                $log->tracef("Loading module: %s", $mod);
-                Module::Load::load($mod);
+                $code_load->($mod);
             }
         }
 
