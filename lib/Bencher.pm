@@ -190,52 +190,111 @@ sub _parse_scenario {
     my $apply_filters = $args{apply_filters} // 1;
     my $aibdf = $args{apply_include_by_default_filter} // 1; # skip items that have include_by_default=0
 
-    my $parsed = {};
+    my $parsed = {%$unparsed}; # shallow copy
 
-    $parsed->{participants} = [];
-    $parsed->{on_failure}     = $unparsed->{on_failure};
-    $parsed->{module_startup} = $unparsed->{module_startup};
-    my $i = -1;
-    for my $p0 (@{ $unparsed->{participants} }) {
-        $i++;
-        my $p = { %$p0, seq=>$i };
-        $p->{include_by_default} //= 1;
-        $p->{type} //= do {
-            if ($p->{cmdline}) {
-                'command';
-            } else {
-                'perl_code';
-            }
-        };
-        if ($p->{fcall_template}) {
-            if ($p->{fcall_template} =~ /\A
-                                         (\w+(?:::\w+)*)
-                                         (::|->)
-                                         (\w+)/x) {
-                $p->{module}   = $1;
-                $p->{function} = $3;
-            }
-        }
-
-        # try to come up with a default name for the participant
-        unless (defined($p->{name})) {
-            if ($p->{type} eq 'command') {
-                my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
-                    join(" ", $p->{cmdline}) : $p->{cmdline};
-                $p->{name} = substr($cmdline, 0, 12);
-            } elsif ($p->{type} eq 'perl_code') {
-                if ($p->{function}) {
-                    $p->{name} = ($p->{module} ? "$p->{module}::" : "").
-                        $p->{function};
-                } elsif ($p->{module}) {
-                    $p->{name} = $p->{module};
+    # normalize participants
+    {
+        my $i = -1;
+        for my $p0 (@{ $unparsed->{participants} }) {
+            $i++;
+            my $p = { %$p0, seq=>$i };
+            $p->{include_by_default} //= 1;
+            $p->{type} //= do {
+                if ($p->{cmdline}) {
+                    'command';
+                } else {
+                    'perl_code';
+                }
+            };
+            if ($p->{fcall_template}) {
+                if ($p->{fcall_template} =~ /\A
+                                             (\w+(?:::\w+)*)
+                                             (::|->)
+                                             (\w+)/x) {
+                    $p->{module}   = $1;
+                    $p->{function} = $3;
                 }
             }
+
+            # try to come up with a default name for the participant
+            unless (defined($p->{name})) {
+                if ($p->{type} eq 'command') {
+                    my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
+                        join(" ", $p->{cmdline}) : $p->{cmdline};
+                    $p->{name} = substr($cmdline, 0, 12);
+                } elsif ($p->{type} eq 'perl_code') {
+                    if ($p->{function}) {
+                        $p->{name} = ($p->{module} ? "$p->{module}::" : "").
+                            $p->{function};
+                    } elsif ($p->{module}) {
+                        $p->{name} = $p->{module};
+                    }
+                }
+            }
+
+            push @{ $parsed->{participants} }, $p;
+        } # for each participant
+
+        _uniquify_names($parsed->{participants});
+
+        # filter participants by include/exclude module/function
+        if ($apply_filters) {
+            if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
+                $parsed->{participants} = [grep {
+                    defined($_->{module}) && $_->{module} ~~ @{ $pargs->{include_modules} }
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
+                $parsed->{participants} = [grep {
+                    !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{include_module_pattern}) {
+                $parsed->{participants} = [grep {
+                    defined($_->{module}) && $_->{module} =~ qr/$pargs->{include_module_pattern}/i
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{exclude_module_pattern}) {
+                $parsed->{participants} = [grep {
+                    !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
+                } @{ $parsed->{participants} }];
+            }
+
+            if ($pargs->{include_functions} && @{ $pargs->{include_functions} }) {
+                $parsed->{participants} = [grep {
+                    defined($_->{function}) && $_->{function} ~~ @{ $pargs->{include_functions} }
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{exclude_functions} && @{ $pargs->{exclude_functions} }) {
+                $parsed->{participants} = [grep {
+                    !defined($_->{function}) || !($_->{function} ~~ @{ $pargs->{exclude_functions} })
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{include_function_pattern}) {
+                $parsed->{participants} = [grep {
+                    defined($_->{function}) && $_->{function} =~ qr/$pargs->{include_function_pattern}/i
+                } @{ $parsed->{participants} }];
+            }
+            if ($pargs->{exclude_function_pattern}) {
+                $parsed->{participants} = [grep {
+                    !defined($_->{function}) || $_->{function} !~ qr/$pargs->{exclude_function_pattern}/i
+                } @{ $parsed->{participants} }];
+            }
         }
 
-        push @{ $parsed->{participants} }, $p;
-    } # for each participant
+        $parsed->{participants} = _filter_records(
+            records => $parsed->{participants},
+            include => $pargs->{include_participants},
+            exclude => $pargs->{exclude_participants},
+            include_pattern => $pargs->{include_participant_pattern},
+            exclude_pattern => $pargs->{exclude_participant_pattern},
+            include_tags => $pargs->{include_participant_tags},
+            exclude_tags => $pargs->{exclude_participant_tags},
+            apply_include_by_default_filter => $aibdf,
+        ) if $apply_filters;
+    } # normalize participants
 
+    # normalize datasets
     if ($unparsed->{datasets}) {
         $parsed->{datasets} = [];
         my $i = -1;
@@ -253,77 +312,21 @@ sub _parse_scenario {
                 }
             }
             push @{ $parsed->{datasets} }, $ds;
-        }
-    } # for each dataset
+        } # for each dataset
 
-    _uniquify_names($parsed->{participants});
-    _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
+        _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
 
-    # filter by include/exclude module/function
-    if ($apply_filters) {
-        if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
-            $parsed->{participants} = [grep {
-                defined($_->{module}) && $_->{module} ~~ @{ $pargs->{include_modules} }
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
-            $parsed->{participants} = [grep {
-                !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{include_module_pattern}) {
-            $parsed->{participants} = [grep {
-                defined($_->{module}) && $_->{module} =~ qr/$pargs->{include_module_pattern}/i
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{exclude_module_pattern}) {
-            $parsed->{participants} = [grep {
-                !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
-            } @{ $parsed->{participants} }];
-        }
-
-        if ($pargs->{include_functions} && @{ $pargs->{include_functions} }) {
-            $parsed->{participants} = [grep {
-                defined($_->{function}) && $_->{function} ~~ @{ $pargs->{include_functions} }
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{exclude_functions} && @{ $pargs->{exclude_functions} }) {
-            $parsed->{participants} = [grep {
-                !defined($_->{function}) || !($_->{function} ~~ @{ $pargs->{exclude_functions} })
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{include_function_pattern}) {
-            $parsed->{participants} = [grep {
-                defined($_->{function}) && $_->{function} =~ qr/$pargs->{include_function_pattern}/i
-            } @{ $parsed->{participants} }];
-        }
-        if ($pargs->{exclude_function_pattern}) {
-            $parsed->{participants} = [grep {
-                !defined($_->{function}) || $_->{function} !~ qr/$pargs->{exclude_function_pattern}/i
-            } @{ $parsed->{participants} }];
-        }
-    }
-
-    $parsed->{participants} = _filter_records(
-        records => $parsed->{participants},
-        include => $pargs->{include_participants},
-        exclude => $pargs->{exclude_participants},
-        include_pattern => $pargs->{include_participant_pattern},
-        exclude_pattern => $pargs->{exclude_participant_pattern},
-        include_tags => $pargs->{include_participant_tags},
-        exclude_tags => $pargs->{exclude_participant_tags},
-        apply_include_by_default_filter => $aibdf,
-    ) if $apply_filters;
-    $parsed->{datasets} = _filter_records(
-        records => $parsed->{datasets},
-        include => $pargs->{include_datasets},
-        exclude => $pargs->{exclude_datasets},
-        include_pattern => $pargs->{include_dataset_pattern},
-        exclude_pattern => $pargs->{exclude_dataset_pattern},
-        include_tags => $pargs->{include_dataset_tags},
-        exclude_tags => $pargs->{exclude_dataset_tags},
-        apply_include_by_default_filter => $aibdf,
-    ) if $apply_filters;
+        $parsed->{datasets} = _filter_records(
+            records => $parsed->{datasets},
+            include => $pargs->{include_datasets},
+            exclude => $pargs->{exclude_datasets},
+            include_pattern => $pargs->{include_dataset_pattern},
+            exclude_pattern => $pargs->{exclude_dataset_pattern},
+            include_tags => $pargs->{include_dataset_tags},
+            exclude_tags => $pargs->{exclude_dataset_tags},
+            apply_include_by_default_filter => $aibdf,
+        ) if $apply_filters;
+    } # normalize datasets
 
     $parsed;
 }
