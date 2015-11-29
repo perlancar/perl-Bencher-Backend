@@ -1289,6 +1289,7 @@ sub bencher {
 
         $code_load->('Benchmark::Dumb');
         $code_load->('Devel::Platform::Info') if $return_resmeta;
+        $code_load->('Sys::Info')             if $return_resmeta;
         $code_load->('Sys::Load')             if $return_resmeta;
 
         # load all modules
@@ -1329,6 +1330,13 @@ sub bencher {
             },
             "silent",
         );
+
+        if ($return_resmeta) {
+            $envres->[3]{'func.elapsed_time'} =
+                time() - $envres->[3]{'_time_start'};
+            delete $envres->[3]{'_time_start'};
+            $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
+        }
 
         for my $seq (sort {$a<=>$b} keys %$tres) {
             my $it = _find_record_by_seq($items, $seq);
@@ -1398,12 +1406,10 @@ sub bencher {
         } # FORMAT
 
         if ($return_resmeta) {
-            $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
             $envres->[3]{'func.platform_info'} =
                 Devel::Platform::Info->new->get_info;
-            $envres->[3]{'func.elapsed_time'} =
-                time() - $envres->[3]{'_time_start'};
-            delete $envres->[3]{'_time_start'};
+            my $info = Sys::Info->new;
+            $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
         }
 
         return $envres;
