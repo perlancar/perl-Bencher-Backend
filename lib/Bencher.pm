@@ -542,9 +542,9 @@ sub _gen_items {
                     $template_vars = $ds->{args};
                 } elsif ($ds->{argv}) {
                     $template_vars = { map {$_=>$ds->{argv}[$_]}
-                                           @{ $ds->{argv} } };
+                                           0..$#{ $ds->{argv} } };
                 } else {
-                    warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
+                    #warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                 }
 
                 if ($template_vars) {
