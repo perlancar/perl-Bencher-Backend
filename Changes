@@ -1,5 +1,16 @@
 Revision history for Bencher
 
+0.16    2015-12-09 (PERLANCAR)
+
+	- Add action: show-items-results.
+
+	- bench: Return more information in result metadata: CPU information in
+          'func.cpu_info' (using Sys::Info), modules' versions in
+          'func.module_versions' (includes benchmarked modules, 'perl', as well
+          as some other modules used e.g. Benchmark::Dumb,
+          Devel::Platform::Info).
+
+
 0.15    2015-11-29 (PERLANCAR)
 
 	- Tweak code for parsing scenario (copy all keys, reorganize code).
