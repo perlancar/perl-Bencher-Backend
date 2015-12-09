@@ -1144,20 +1144,26 @@ sub bencher {
     my %args = @_;
 
     my $action = $args{action};
+    my $envres;
 
     if ($action eq 'list-scenario-modules') {
         require PERLANCAR::Module::List;
         my $mods = PERLANCAR::Module::List::list_modules(
             'Bencher::Scenario::', {list_modules=>1, recurse=>1});
-        return [200, "OK",
-                [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
+        $envres =
+            [200, "OK",
+             [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
+        goto L_END;
     }
 
     my $unparsed = _get_scenario(parent_args=>\%args);
 
     if ($action eq 'show-scenario') {
-        return [200, "OK", $unparsed];
+        $envres = [200, "OK", $unparsed];
+        goto L_END;
     }
+
+    my $stash = {};
 
     my $aibdf;
     $aibdf = 0 if $action =~ /\A(list-(datasets|participants))\z/;
@@ -1170,7 +1176,10 @@ sub bencher {
     my $module_startup = $args{module_startup} // $parsed->{module_startup};
 
     if ($action eq 'list-datasets') {
-        return [200, "OK", undef] unless $parsed->{datasets};
+        unless ($parsed->{datasets}) {
+            $envres = [200, "OK", undef];
+            goto L_END;
+        }
         my @res;
         my $has_summary = 0;
         for my $ds (@{ $parsed->{datasets} }) {
@@ -1199,12 +1208,14 @@ sub bencher {
             'tags',
         ]
             if $args{detail};
-        return [200, "OK", \@res, \%resmeta];
+        $envres = [200, "OK", \@res, \%resmeta];
+        goto L_END;
     }
 
     if ($action eq 'list-participant-modules') {
         my @modules = _get_participant_modules($parsed);
-        return [200, "OK", \@modules];
+        $envres = [200, "OK", \@modules];
+        goto L_END;
     }
 
     if ($action eq 'list-participants') {
@@ -1245,11 +1256,24 @@ sub bencher {
             'tags',
         ]
             if $args{detail};
-        return [200, "OK", \@res, \%resmeta];
+        $envres = [200, "OK", \@res, \%resmeta];
+        goto L_END;
+    }
+
+    if ($parsed->{before_gen_items}) {
+        $log->infof("Executing before_gen_items hook ...");
+        $parsed->{before_gen_items}->(
+            hook_name => 'before_gen_items',
+            scenario  => $parsed,
+            stash     => $stash,
+        );
     }
 
     my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
-    return $res unless $res->[0] == 200;
+    unless ($res->[0] == 200) {
+        $envres = $res;
+        goto L_END;
+    }
     my $items = $res->[2];
 
     if ($action eq 'list-items') {
@@ -1267,14 +1291,15 @@ sub bencher {
         my %resmeta;
         $resmeta{'table.fields'} = [qw/seq name/]
             if $args{detail};
-        return [200, "OK", \@res, \%resmeta];
+        $envres = [200, "OK", \@res, \%resmeta];
+        goto L_END;
     }
 
     if ($action =~ /\A(show-items-results|bench)\z/) {
         require Module::Load;
 
         my $participants = $parsed->{participants};
-        my $envres = [200, "OK", [], {}];
+        $envres = [200, "OK", [], {}];
 
         my $return_resmeta =
             $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
@@ -1353,6 +1378,15 @@ sub bencher {
             goto RETURN_RESULT;
         }
 
+        if ($parsed->{before_bench}) {
+            $log->infof("Executing before_bench hook ...");
+            $parsed->{before_bench}->(
+                hook_name => 'before_bench',
+                scenario  => $parsed,
+                stash     => $stash,
+            );
+        }
+
         if ($return_resmeta) {
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
             $envres->[3]{'_time_start'} = time();
@@ -1386,6 +1420,16 @@ sub bencher {
         }
         $envres->[3]{'table.fields'} =
             [qw/seq name rate time samples errors/];
+
+        if ($parsed->{after_bench}) {
+            $log->infof("Executing after_bench hook ...");
+            $parsed->{after_bench}->(
+                hook_name => 'after_bench',
+                scenario  => $parsed,
+                stash     => $stash,
+                result    => $envres,
+            );
+        }
 
       FORMAT:
         {
@@ -1448,10 +1492,26 @@ sub bencher {
         }
 
       RETURN_RESULT:
-        return $envres;
+
+        goto L_END;
+
     }
 
-    [304,"No action"];
+    $envres = [304,"No action"];
+
+  L_END:
+
+    if ($parsed->{before_return}) {
+        $log->infof("Executing before_return hook ...");
+        $parsed->{before_return}->(
+            hook_name => 'before_return',
+            scenario  => $parsed,
+            stash     => $stash,
+            result    => $envres,
+        );
+    }
+
+    $envres;
 }
 
 $SPEC{parse_scenario} = {
@@ -1557,6 +1617,22 @@ Or, if you are benchmarking commands, you specify C<cmdline> (array or strings,
 or strings) instead. An array cmdline will not use shell, while the string
 version will use shell. See L<Bencher::Scenario::Interpreters>.
 
+=over
+
+=item * name
+
+=item * summary
+
+=item * module (str)
+
+=item * function (str)
+
+=item * fcall_template (str)
+
+=item * result_is_list (bool, default 0)
+
+=back
+
 =head2 Datasets
 
 B<datasets> (array) lists the function inputs (or command-line arguments). You
@@ -1565,6 +1641,22 @@ can C<name> each dataset too, to be able to refer to it more easily.
 Other properties you can add to a dataset: C<include_by_default> (bool, default
 true, can be set to false if you want to exclude dataset by default when running
 benchmark, unless the dataset is explicitly included).
+
+=over
+
+=item * name
+
+=item * summary
+
+=item * description
+
+=item * args
+
+=item * argv
+
+=item * include_by_default (bool, default 1)
+
+=back
 
 =head3 Other properties
 
@@ -1591,6 +1683,34 @@ before benchmarking and trap command failure/Perl exception and if that happens,
 will "skip" the item.
 
 Can be overriden in the CLI with C<--on-failure> option.
+
+=item * before_gen_items (code)
+
+If specified, then this code will be called before generating items. You can use
+this hook to, e.g.: generate datasets dynamically. Code will be given hash
+argument with the following keys: C<hook_name> (str, set to
+C<before_gen_items>), C<scenario>, C<stash> (hash, which you can use to pass
+data between hooks).
+
+=item * before_bench (code)
+
+If specified, then this code will be called before starting the benchmark. Code
+will be given hash argument with the following keys: C<hook_name> (str, set to
+C<before_bench>), C<scenario>, C<stash>.
+
+=item * after_bench (code)
+
+If specified, then this code will be called after completing benchmark. You can
+use this hook to, e.g.: do some custom formatting/modification to the result.
+Code will be given hash argument with the following keys: C<hook_name> (str, set
+to C<before_bench>), C<scenario>, C<stash>, C<result> (array, enveloped result).
+
+=item * before_return (code)
+
+If specified, then this code will be called before displaying/returning the
+result. You can use this hook to, e.g.: modify the result in some way. Code will
+be given hash argument with the following keys: C<hook_name> (str, set to
+C<before_bench>), C<scenario>, C<stash>, C<result>.
 
 =back
 
