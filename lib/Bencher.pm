@@ -567,6 +567,7 @@ sub _gen_items {
             seq  => $i,
             name => $item_name,
             code => $code,
+            _permute => $h,
         };
     } # ITER
 
@@ -878,6 +879,7 @@ _
                            list-participant-modules
                            list-datasets
                            list-items
+                           show-items-results
                            bench
                        /]
                     # list-functions
@@ -919,6 +921,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a list-items',
                     code => sub { $_[0]{action} = 'list-items' },
+                },
+                show_items_results => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a show-items-results',
+                    code => sub { $_[0]{action} = 'show-items-results' },
                 },
             },
             tags => ['category:action'],
@@ -1263,9 +1270,10 @@ sub bencher {
         return [200, "OK", \@res, \%resmeta];
     }
 
-    if ($action eq 'bench') {
+    if ($action =~ /\A(show-items-results|bench)\z/) {
         require Module::Load;
 
+        my $participants = $parsed->{participants};
         my $envres = [200, "OK", [], {}];
 
         my $return_resmeta =
@@ -1302,20 +1310,47 @@ sub bencher {
         }
 
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
-        if ($on_failure eq 'skip') {
+        {
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{name});
-                eval { $it->{code}->() };
-                if ($@) {
-                    warn "Skipping item #$it->{seq} ($it->{name}) ".
-                        "due to failure: $@\n";
-                    next;
+                eval {
+                    my $result_is_list = $participants->[
+                        $it->{_permute}{participant} ]{result_is_list} // 0;
+                    $it->{_result} = $result_is_list ?
+                        [$it->{code}->()] : $it->{code}->();
+                };
+                my $err = $@;
+                if ($err) {
+                    if ($on_failure eq 'skip' || $action eq 'show-items-results') {
+                        warn "Skipping item #$it->{seq} ($it->{name}) ".
+                            "due to failure: $err\n";
+                        next;
+                    } else {
+                        die "Item #$it->{seq} ($it->{name}) fails: $err\n";
+                    }
                 }
                 push @$fitems, $it;
             }
             $items = $fitems;
+        }
+
+        if ($action eq 'show-items-results') {
+            if ($return_resmeta) {
+                $envres->[2] = [map {$_->{_result}} @$items];
+            } else {
+                require Data::Dump;
+                $envres->[2] = join(
+                    "",
+                    map {(
+                        "#$_->{seq} ($_->{name}):\n",
+                        Data::Dump::dump($_->{_result}),
+                        "\n\n",
+                    )} @$items
+                );
+            }
+            goto RETURN_RESULT;
         }
 
         if ($return_resmeta) {
@@ -1412,6 +1447,7 @@ sub bencher {
             $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
         }
 
+      RETURN_RESULT:
         return $envres;
     }
 
