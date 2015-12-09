@@ -60,6 +60,10 @@ List items instead of running benchmark:
 
  % bencher ... --list-items
 
+Show items' results instead of running benchmark:
+
+ % bencher ... --show-items-results
+
 Select (include/exclude) participants before running benchmark (you can also
 select datasets/modules/items):
 
