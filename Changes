@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.17    2015-12-09 (PERLANCAR)
+
+	- Add hooks (currently available hooks: before_gen_items,
+	  before_bench, after_bench, before_return).
+
+
 0.16    2015-12-09 (PERLANCAR)
 
 	- Add action: show-items-results.
