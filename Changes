@@ -1,5 +1,13 @@
 Revision history for Bencher
 
+0.18    2015-12-17 (PERLANCAR)
+
+	- Add option --raw, currently only to show items' results directly
+	  as string instead of as data dump.
+
+	- Bump prereq version Log::Any::IfLOG to 0.07.
+
+
 0.17    2015-12-09 (PERLANCAR)
 
 	- Add hooks (currently available hooks: before_gen_items,
