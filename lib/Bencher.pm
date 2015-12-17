@@ -930,6 +930,16 @@ _
             },
             tags => ['category:action'],
         },
+        raw => {
+            summary => 'Show "raw" data',
+            schema => 'bool',
+            description => <<'_',
+
+When action=show-items-result, will print result as-is instead of dumping as
+Perl.
+
+_
+        },
         module_startup => {
             schema => ['bool*', is=>1],
             summary => 'Benchmark module startup overhead instead of normal benchmark',
@@ -1364,6 +1374,15 @@ sub bencher {
         if ($action eq 'show-items-results') {
             if ($return_resmeta) {
                 $envres->[2] = [map {$_->{_result}} @$items];
+            } elsif ($args{raw}) {
+                $envres->[2] = join(
+                    "",
+                    map {(
+                        "#$_->{seq} ($_->{name}):\n",
+                        $_->{_result},
+                        "\n\n",
+                    )} @$items
+                );
             } else {
                 require Data::Dump;
                 $envres->[2] = join(
