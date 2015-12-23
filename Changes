@@ -1,5 +1,10 @@
 Revision history for Bencher
 
+0.19    2015-12-23 (PERLANCAR)
+
+        - Support multivalued arguments.
+
+
 0.18    2015-12-17 (PERLANCAR)
 
 	- Add option --raw, currently only to show items' results directly
