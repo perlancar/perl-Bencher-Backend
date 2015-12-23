@@ -419,6 +419,14 @@ sub _gen_items {
     if ($datasets && @$datasets) {
         push @permute, "dataset", [map {$_->{seq}} @$datasets];
     }
+
+    my $extra_permutes = $parsed->{permutes} // {};
+    if (keys %$extra_permutes) {
+        for my $pm (keys %$extra_permutes) {
+            push @permute, "permute:$pm", $extra_permutes->{$pm};
+        }
+    }
+
     $log->debugf("permute: %s", \@permute);
 
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
@@ -543,16 +551,18 @@ sub _gen_items {
             } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
                 my $template_vars;
                 if ($ds->{args}) {
-                    $template_vars = $ds->{args};
+                    $template_vars = { %{$ds->{args}} };
                 } elsif ($ds->{argv}) {
                     $template_vars = { map {$_=>$ds->{argv}[$_]}
                                            0..$#{ $ds->{argv} } };
                 } else {
                     #warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                 }
+                # add template variables from extra permutes
+                for (grep {/\Apermute:/} keys %$h) { $template_vars->{$_} = $h->{$_} }
 
                 if ($template_vars) {
-                    $template =~ s/\<(\w+)\>/dmp($template_vars->{$1})/eg;
+                    $template =~ s/\<(\w+(?::\w+)?)\>/dmp($template_vars->{$1})/eg;
                 }
                 my $code_str = "sub { $template }";
                 $log->debugf("Item #%d: code=%s", $i, $code_str);
@@ -870,6 +880,10 @@ _
                 d => $_alias_spec_add_dataset,
             },
         },
+        permutes => {
+            summary => 'Add permutes',
+            schema => ['hash*', each_value=>'array*'],
+        },
         action => {
             schema => ['str*', {
                 in=>[qw/
@@ -878,6 +892,7 @@ _
                            list-participants
                            list-participant-modules
                            list-datasets
+                           list-permutes
                            list-items
                            show-items-results
                            bench
@@ -916,6 +931,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a list-datasets',
                     code => sub { $_[0]{action} = 'list-datasets' },
+                },
+                list_permutes => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-permutes',
+                    code => sub { $_[0]{action} = 'list-permutes' },
                 },
                 list_items => {
                     is_flag => 1,
@@ -1605,7 +1625,7 @@ An example scenario (from C<Bench::Scenario::Example>):
  };
  1;
 
-=head2 Participants
+=head2 participants
 
 B<participants> (array) lists Perl code (or external command) that we want to
 benchmark. Instead of just list of coderefs like what L<Benchmark> expects, you
@@ -1652,7 +1672,7 @@ version will use shell. See L<Bencher::Scenario::Interpreters>.
 
 =back
 
-=head2 Datasets
+=head2 datasets
 
 B<datasets> (array) lists the function inputs (or command-line arguments). You
 can C<name> each dataset too, to be able to refer to it more easily.
@@ -1694,6 +1714,25 @@ From DefHash, a one-line plaintext summary.
 =item * description (str)
 
 From DefHash, longer description in Markdown.
+
+=item * permutes (hash)
+
+Extra permutations. Bencher will create a permutation for every key in this
+hash. You can use this to benchmark variation of options/arguments. Each hash
+value must be an array of values. Example:
+
+ permutes => {
+     return_type => ['bool', 'str', 'full'],
+ }
+
+You use it when declaring participants, e.g.:
+
+ participants => [
+     fcall_template => 'Data::Sah::gen_validator(<schema>, {return_type=><permute:return_type>})'
+ ]
+
+When generating benchmark items, for this participant and for each dataset there
+will be three items generated, one for every different C<return_type>.
 
 =item * on_failure (str, "skip"|"die")
 
