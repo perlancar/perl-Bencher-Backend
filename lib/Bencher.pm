@@ -420,22 +420,14 @@ sub _gen_items {
         push @permute, "dataset", [map {$_->{seq}} @$datasets];
     }
 
-    my $extra_permutes = $parsed->{permutes} // {};
-    if (keys %$extra_permutes) {
-        for my $pm (keys %$extra_permutes) {
-            push @permute, "permute:$pm", $extra_permutes->{$pm};
-        }
-    }
-
     $log->debugf("permute: %s", \@permute);
 
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
-    my $i = -1;
+    my $item_seq = -1;
     my $items = [];
   ITER:
     while (my $h = $iter->()) {
         $log->tracef("iter returns: %s", $h);
-        $i++;
         my $item_name;
 
         my $p = _find_record_by_seq($participants, $h->{participant});
@@ -500,85 +492,126 @@ sub _gen_items {
             }
         }
 
-        {
-            # convert participant's & dataset index to name temporarily, for
-            # nicer item name
-            my %h = %$h;
-            $h{participant} = $p->{name};
-            $h{dataset} = $ds->{name} if $ds;
-            my @k = keys %h;
-            if (@k == 1) {
-                $item_name = $h{$k[0]};
-            } else {
-                $item_name = dmp(\%h);
+        my $iter_args;
+        if ($ds && $ds->{args} &&
+                (my @multi_keys = grep {/\@\z/} keys %{$ds->{args}})) {
+            # we need to permute arguments also
+            my @permute_args;
+            for (@multi_keys) {
+                s/\@\z//;
+                push @permute_args, $_ => $ds->{args}{"$_\@"};
             }
-            #$log->tracef("Set item name to: %s", $item_name);
-        }
-
-        my $code;
-        if ($p->{type} eq 'command') {
-            my @cmd;
-            my $shell;
-            if (ref($p->{cmdline}) eq 'ARRAY') {
-                @cmd = @{ $p->{cmdline} };
-                $shell = 0;
-            } else {
-                @cmd = ($p->{cmdline});
-                $shell = 1;
-            }
-            $code = sub {
-                if ($shell) {
-                    system $cmd[0];
-                } else {
-                    system {$cmd[0]} @cmd;
-                }
-                die "Command failed (child error=$?, os error=$!)\n"
-                    if $?;
-            };
-        } elsif ($p->{type} eq 'perl_code') {
-            if ($p->{code}) {
-                if ($ds) {
-                    if ($ds->{argv}) {
-                        $code = sub { $p->{code}->(@{$ds->{argv}}) };
-                    } elsif ($ds->{args}) {
-                        $code = sub { $p->{code}->(%{$ds->{args}}) };
-                    } else {
-                        return [400, "Participant #$p->{seq}, dataset #$h->{dataset}: No argv/args supplied for code"];
-                    }
-                } else {
-                    $code = $p->{code};
-                }
-            } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
-                my $template_vars;
-                if ($ds->{args}) {
-                    $template_vars = { %{$ds->{args}} };
-                } elsif ($ds->{argv}) {
-                    $template_vars = { map {$_=>$ds->{argv}[$_]}
-                                           0..$#{ $ds->{argv} } };
-                } else {
-                    #warn "Item #$i: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
-                }
-                # add template variables from extra permutes
-                for (grep {/\Apermute:/} keys %$h) { $template_vars->{$_} = $h->{$_} }
-
-                if ($template_vars) {
-                    $template =~ s/\<(\w+(?::\w+)?)\>/dmp($template_vars->{$1})/eg;
-                }
-                my $code_str = "sub { $template }";
-                $log->debugf("Item #%d: code=%s", $i, $code_str);
-                $code = eval $code_str;
-                return [400, "Item #$i: code compile error: $@ (code: $code_str)"] if $@;
-            }
+            $iter_args = Permute::Named::Iter::permute_named_iter(
+                @permute_args);
+            $log->debugf("permute args: %s", \@permute_args);
         } else {
-            return [400, "Unknown participant type '$p->{type}'"];
+            # create an iterator that returns just a single item: {}
+            # require Array::Iter; $iter_args = Array::Iter::list_iter({});
+            $iter_args = do {
+                my $ary = [{}];
+                my $i = 0;
+                sub {
+                    if ($i < @$ary) {
+                        return $ary->[$i++];
+                    } else {
+                        return undef;
+                    }
+                };
+            };
         }
 
-        push @$items, {
-            seq  => $i,
-            name => $item_name,
-            code => $code,
-            _permute => $h,
-        };
+      ITER_ARGS:
+        while (my $h_args = $iter_args->()) {
+            $item_seq++;
+            my $code;
+            if ($p->{type} eq 'command') {
+                my @cmd;
+                my $shell;
+                if (ref($p->{cmdline}) eq 'ARRAY') {
+                    @cmd = @{ $p->{cmdline} };
+                    $shell = 0;
+                } else {
+                    @cmd = ($p->{cmdline});
+                    $shell = 1;
+                }
+                $code = sub {
+                    if ($shell) {
+                        system $cmd[0];
+                    } else {
+                        system {$cmd[0]} @cmd;
+                    }
+                    die "Command failed (child error=$?, os error=$!)\n"
+                        if $?;
+                };
+            } elsif ($p->{type} eq 'perl_code') {
+                my $args;
+                if ($ds->{args}) {
+                    $args = { %{$ds->{args}} };
+                    delete $args->{$_} for (grep {/\@\z/} keys %$args);
+                    $args->{$_} = $h_args->{$_} for keys %$h_args;
+                }
+                if ($p->{code}) {
+                    if ($ds) {
+                        if ($ds->{argv}) {
+                            $code = sub { $p->{code}->(@{$ds->{argv}}) };
+                        } elsif ($ds->{args}) {
+                            $code = sub { $p->{code}->(%$args) };
+                        } else {
+                            return [400, "Participant #$p->{seq}, dataset #$h->{dataset}: No argv/args supplied for code"];
+                        }
+                    } else {
+                        $code = $p->{code};
+                    }
+                } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
+                    my $template_vars;
+                    if ($ds->{args}) {
+                        $template_vars = { %$args };
+                    } elsif ($ds->{argv}) {
+                        $template_vars = { map {$_=>$ds->{argv}[$_]}
+                                               0..$#{ $ds->{argv} } };
+                    } else {
+                        #warn "Item #$item_seq: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
+                    }
+
+                    if ($template_vars) {
+                        $template =~ s/\<(\w+(?::\w+)?)\>/dmp($template_vars->{$1})/eg;
+                    }
+                    my $code_str = "sub { $template }";
+                    $log->debugf("Item #%d: code=%s", $item_seq, $code_str);
+                    $code = eval $code_str;
+                    return [400, "Item #$item_seq: code compile error: $@ (code: $code_str)"] if $@;
+                }
+            } else {
+                return [400, "Unknown participant type '$p->{type}'"];
+            }
+
+            # determine item name
+            {
+                # convert participant's & dataset index to name temporarily, for
+                # nicer item name
+                my %h = (%$h_args, %$h);
+                $h{participant} = $p->{name};
+                $h{dataset} = $ds->{name} if $ds;
+                my @k = keys %h;
+                if (@k == 1) {
+                    $item_name = $h{$k[0]};
+                } else {
+                    $item_name = dmp(\%h);
+                }
+                #$log->tracef("Set item name to: %s", $item_name);
+            }
+
+            push @$items, {
+                seq  => $item_seq,
+                name => $item_name,
+                code => $code,
+                _permute => $h,
+                ((_permute_args => $h_args) x !!$ds->{args}),
+            };
+
+            last ITER_ARGS unless $ds->{args};
+        } # ITER_ARGS
+
     } # ITER
 
     $items = _filter_records(
@@ -880,10 +913,6 @@ _
                 d => $_alias_spec_add_dataset,
             },
         },
-        permutes => {
-            summary => 'Add permutes',
-            schema => ['hash*', each_value=>'array*'],
-        },
         action => {
             schema => ['str*', {
                 in=>[qw/
@@ -892,7 +921,6 @@ _
                            list-participants
                            list-participant-modules
                            list-datasets
-                           list-permutes
                            list-items
                            show-items-results
                            bench
@@ -1691,6 +1719,18 @@ benchmark, unless the dataset is explicitly included).
 
 =item * args
 
+Example:
+
+ {filename=>"ujang.txt", size=>10}
+
+You can supply multiple argument values by adding C<@> suffix to the argument
+name, example:
+
+ {filename=>"ujang.txt", 'size@'=>[10, 100, 1000]}
+
+This means, for each participant mentioning C<size>, three benchmark items will
+be generated, one for each value of C<size>.
+
 =item * argv
 
 =item * include_by_default (bool, default 1)
@@ -1714,25 +1754,6 @@ From DefHash, a one-line plaintext summary.
 =item * description (str)
 
 From DefHash, longer description in Markdown.
-
-=item * permutes (hash)
-
-Extra permutations. Bencher will create a permutation for every key in this
-hash. You can use this to benchmark variation of options/arguments. Each hash
-value must be an array of values. Example:
-
- permutes => {
-     return_type => ['bool', 'str', 'full'],
- }
-
-You use it when declaring participants, e.g.:
-
- participants => [
-     fcall_template => 'Data::Sah::gen_validator(<schema>, {return_type=><permute:return_type>})'
- ]
-
-When generating benchmark items, for this participant and for each dataset there
-will be three items generated, one for every different C<return_type>.
 
 =item * on_failure (str, "skip"|"die")
 
