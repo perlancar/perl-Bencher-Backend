@@ -1686,9 +1686,22 @@ version will use shell. See L<Bencher::Scenario::Interpreters>.
 
 =over
 
-=item * name
+=item * name (str)
 
-=item * summary
+From DefHash.
+
+=item * summary (str)
+
+From DefHash.
+
+=item * description (str)
+
+From DefHash.
+
+=item * tags (array of str)
+
+From DefHash. Define tag(s) for this participant. Can be used to include/exclude
+groups of participants having the same tags.
 
 =item * module (str)
 
@@ -1711,13 +1724,24 @@ benchmark, unless the dataset is explicitly included).
 
 =over
 
-=item * name
+=item * name (str)
 
-=item * summary
+From DefHash.
 
-=item * description
+=item * summary (str)
 
-=item * args
+From DefHash.
+
+=item * description (str)
+
+From DefHash.
+
+=item * tags (array of str)
+
+From DefHash. Define tag(s) for this dataset. Can be used to include/exclude
+groups of datasets having the same tags.
+
+=item * args (hash)
 
 Example:
 
@@ -1731,9 +1755,17 @@ name, example:
 This means, for each participant mentioning C<size>, three benchmark items will
 be generated, one for each value of C<size>.
 
-=item * argv
+=item * argv (array)
 
 =item * include_by_default (bool, default 1)
+
+=item * include_participant_tags (array of str)
+
+Only include participants having all these tags.
+
+=item * exclude_participant_tags (array of str)
+
+Exclude participants having any of these tags.
 
 =back
 
