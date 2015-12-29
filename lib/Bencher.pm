@@ -1455,6 +1455,17 @@ sub bencher {
         }
 
         if ($return_resmeta) {
+            $envres->[3]{'func.bencher_args'} = {
+                map {$_=>$args{$_}} grep {!/\A-/} keys %args};
+            if ($args{scenario_file}) {
+                $envres->[3]{'func.scenario_file'} = $args{scenario_file};
+            } elsif (my $mod = $args{scenario_module}) {
+                $mod = "Bencher::Scenario::$mod";
+                no strict 'refs';
+                $envres->[3]{'func.scenario_module'} = $mod;
+                $envres->[3]{'func.module_versions'}{$mod} =
+                    ${"$mod\::VERSION"};
+            }
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
             $envres->[3]{'_time_start'} = time();
         }
