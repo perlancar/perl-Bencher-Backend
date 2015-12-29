@@ -862,6 +862,72 @@ my $_alias_spec_add_participant = {
     },
 };
 
+$SPEC{format_result} = {
+    v => 1.1,
+    summary => 'Format bencher result',
+    args => {
+        envres => {
+            summary => 'Enveloped result from bencher',
+            schema => 'array*', # XXX envres
+            req => 1,
+            pos => 0,
+            cmdline_src => 'stdin_or_file',
+        },
+    },
+    args_as => 'array',
+};
+sub format_result {
+    my $envres = shift;
+
+    my $ff = $envres->[3]{'table.fields'};
+
+    # for module_startup mode: remove 'rate', add 'mod_overhead_time'
+    if ($envres->[3]{'func.module_startup'}) {
+        my $rit_baseline = _find_record_by_seq($envres->[2], 0);
+        for my $rit (@{$envres->[2]}) {
+            delete $rit->{rate};
+            if ($rit_baseline) {
+                $rit->{mod_overhead_time} = $rit->{time} - $rit_baseline->{time};
+            }
+        }
+        splice @$ff, (firstidx {$_ eq 'rate'} @$ff), 1;
+        splice @$ff, (firstidx {$_ eq 'time'} @$ff)+1, 0, "mod_overhead_time";
+    }
+
+    # sort by default from slowest to fastest
+    $envres->[2] = [sort {$b->{time} <=> $a->{time}} @{$envres->[2]}];
+
+    # pick an appropriate time unit & format the time
+    my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
+
+    my ($unit, $factor);
+    if ($max <= 1.5e-6) {
+        $unit = "ns";
+        $factor = 1e9;
+    } elsif ($max <= 1.5e-3) {
+        $unit = "\x{03bc}s"; # XXX enable utf
+        $factor = 1e6;
+    } elsif ($max <= 1.5) {
+        $unit = "ms";
+        $factor = 1e3;
+    }
+
+    if ($unit) {
+        for my $rit (@{$envres->[2]}) {
+            # XXX format number of decimal digits of 'time' and 'rate'
+            # based on sigma
+            $rit->{time} = sprintf(
+                "%.5f%s", $rit->{time} * $factor, $unit);
+            if (exists $rit->{mod_overhead_time}) {
+                $rit->{mod_overhead_time} = sprintf(
+                    "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
+            }
+        }
+    }
+
+    $envres;
+}
+
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
@@ -1363,6 +1429,7 @@ sub bencher {
             $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
             0 : 1;
 
+        $envres->[3]{'func.module_startup'} = $module_startup;
         $envres->[3]{'func.module_versions'}{perl} = $^V if $return_resmeta;
 
         my $code_load = sub {
@@ -1455,6 +1522,7 @@ sub bencher {
         }
 
         if ($return_resmeta) {
+            $envres->[3]{'func.bencher_version'} = $Bencher::VERSION;
             $envres->[3]{'func.bencher_args'} = {
                 map {$_=>$args{$_}} grep {!/\A-/} keys %args};
             if ($args{scenario_file}) {
@@ -1514,53 +1582,8 @@ sub bencher {
             my $r = $args{-cmdline_r};
             last unless $r && ($r->{format} // 'text') =~ /text/;
 
-            my $ff = $envres->[3]{'table.fields'};
-
-            # for module_startup mode: remove 'rate', add 'mod_overhead_time'
-            if ($module_startup) {
-                my $rit_baseline = _find_record_by_seq($envres->[2], 0);
-                for my $rit (@{$envres->[2]}) {
-                    delete $rit->{rate};
-                    if ($rit_baseline) {
-                        $rit->{mod_overhead_time} = $rit->{time} - $rit_baseline->{time};
-                    }
-                }
-                splice @$ff, (firstidx {$_ eq 'rate'} @$ff), 1;
-                splice @$ff, (firstidx {$_ eq 'time'} @$ff)+1, 0, "mod_overhead_time";
-            }
-
-            # sort by default from slowest to fastest
-            $envres->[2] = [sort {$b->{time} <=> $a->{time}} @{$envres->[2]}];
-
-            # pick an appropriate time unit & format the time
-            my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
-
-            my ($unit, $factor);
-            if ($max <= 1.5e-6) {
-                $unit = "ns";
-                $factor = 1e9;
-            } elsif ($max <= 1.5e-3) {
-                $unit = "\x{03bc}s"; # XXX enable utf
-                $factor = 1e6;
-            } elsif ($max <= 1.5) {
-                $unit = "ms";
-                $factor = 1e3;
-            }
-
-            if ($unit) {
-                for my $rit (@{$envres->[2]}) {
-                    # XXX format number of decimal digits of 'time' and 'rate'
-                    # based on sigma
-                    $rit->{time} = sprintf(
-                        "%.5f%s", $rit->{time} * $factor, $unit);
-                    if (exists $rit->{mod_overhead_time}) {
-                        $rit->{mod_overhead_time} = sprintf(
-                            "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
-                    }
-                }
-            }
-
-        } # FORMAT
+            format_result($envres);
+        }
 
         if ($return_resmeta) {
             $envres->[3]{'func.platform_info'} =
