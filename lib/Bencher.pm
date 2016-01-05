@@ -921,12 +921,15 @@ sub format_result {
             $rit->{time} = sprintf(
                 "%.${num_significant_digits}g%s",
                 $rit->{time} * $factor, $unit);
-            $rit->{rate} = sprintf(
-                "%.${num_significant_digits}g", $rit->{rate});
+            if (exists $rit->{rate}) {
+                $rit->{rate} = sprintf(
+                    "%.${num_significant_digits}g", $rit->{rate});
+            }
             $rit->{errors} = sprintf("%.2g", $rit->{errors});
             if (exists $rit->{mod_overhead_time}) {
                 $rit->{mod_overhead_time} = sprintf(
-                    "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
+                    "%.${num_significant_digits}g%s",
+                    $rit->{mod_overhead_time} * $factor, $unit);
             }
         }
     }
