@@ -1,5 +1,14 @@
 Revision history for Bencher
 
+0.21    2016-01-05 (PERLANCAR)
+
+	- Format time/rate with %g using appropriate number of significant
+	  digits based on errors.
+
+	- Reduce startup overheads by delay-loading Benchmark::Dumb &
+	  Time::HiRes.
+
+
 0.20    2016-01-05 (PERLANCAR)
 
 	- [Bugfix] prevent autovivify $ds.
