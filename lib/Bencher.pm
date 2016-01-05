@@ -1572,7 +1572,7 @@ sub bencher {
             };
         }
         $envres->[3]{'table.fields'} =
-            [qw/seq name rate time samples errors/];
+            [qw/seq name rate time errors samples/];
 
         if ($parsed->{after_bench}) {
             $log->infof("Executing after_bench hook ...");
