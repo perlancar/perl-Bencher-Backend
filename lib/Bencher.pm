@@ -8,10 +8,8 @@ use strict;
 use warnings;
 use Log::Any::IfLOG '$log';
 
-use Benchmark::Dumb qw(timethese);
 use Data::Dmp;
 use List::MoreUtils qw(firstidx minmax uniq);
-use Time::HiRes qw(time);
 
 our %SPEC;
 
@@ -887,7 +885,8 @@ sub format_result {
         for my $rit (@{$envres->[2]}) {
             delete $rit->{rate};
             if ($rit_baseline) {
-                $rit->{mod_overhead_time} = $rit->{time} - $rit_baseline->{time};
+                $rit->{mod_overhead_time} =
+                    $rit->{time} - $rit_baseline->{time};
             }
         }
         splice @$ff, (firstidx {$_ eq 'rate'} @$ff), 1;
@@ -914,10 +913,10 @@ sub format_result {
 
     if ($unit) {
         for my $rit (@{$envres->[2]}) {
-            # XXX format number of decimal digits of 'time' and 'rate'
-            # based on sigma
+            my $num_significant_digits =
             $rit->{time} = sprintf(
-                "%.5f%s", $rit->{time} * $factor, $unit);
+                "%.${num_significant_digits}f%s",
+                $rit->{time} * $factor, $unit);
             if (exists $rit->{mod_overhead_time}) {
                 $rit->{mod_overhead_time} = sprintf(
                     "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
@@ -1421,6 +1420,7 @@ sub bencher {
 
     if ($action =~ /\A(show-items-results|bench)\z/) {
         require Module::Load;
+        require Time::HiRes;
 
         my $participants = $parsed->{participants};
         $envres = [200, "OK", [], {}];
@@ -1535,7 +1535,7 @@ sub bencher {
                     ${"$mod\::VERSION"};
             }
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
-            $envres->[3]{'_time_start'} = time();
+            $envres->[3]{'_time_start'} = Time::HiRes::time();
         }
 
         my $tres = Benchmark::Dumb::_timethese_guts(
@@ -1548,7 +1548,7 @@ sub bencher {
 
         if ($return_resmeta) {
             $envres->[3]{'func.elapsed_time'} =
-                time() - $envres->[3]{'_time_start'};
+                Time::HiRes::time() - $envres->[3]{'_time_start'};
             delete $envres->[3]{'_time_start'};
             $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
         }
