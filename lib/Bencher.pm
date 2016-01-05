@@ -545,7 +545,7 @@ sub _gen_items {
                 };
             } elsif ($p->{type} eq 'perl_code') {
                 my $args;
-                if ($ds->{args}) {
+                if ($ds && $ds->{args}) {
                     $args = { %{$ds->{args}} };
                     delete $args->{$_} for (grep {/\@\z/} keys %$args);
                     $args->{$_} = $h_args->{$_} for keys %$h_args;
