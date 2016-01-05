@@ -1542,7 +1542,7 @@ sub bencher {
                     ${"$mod\::VERSION"};
             }
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
-            $envres->[3]{'_time_start'} = Time::HiRes::time();
+            $envres->[3]{'func.time_start'} = Time::HiRes::time();
         }
 
         my $tres = Benchmark::Dumb::_timethese_guts(
@@ -1554,9 +1554,9 @@ sub bencher {
         );
 
         if ($return_resmeta) {
+            $envres->[3]{'func.time_end'} = Time::HiRes::time();
             $envres->[3]{'func.elapsed_time'} =
-                Time::HiRes::time() - $envres->[3]{'_time_start'};
-            delete $envres->[3]{'_time_start'};
+                $envres->[3]{'func.time_end'} - $envres->[3]{'func.time_start'};
             $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
         }
 
