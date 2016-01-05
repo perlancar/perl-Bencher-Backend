@@ -1,5 +1,14 @@
 Revision history for Bencher
 
+0.22    2016-01-05 (PERLANCAR)
+
+	- Formatting fixes.
+
+	- [ux] Reorder fields: samples moved after errors.
+
+	- Add result metadata: time_start & time_end.
+
+
 0.21    2016-01-05 (PERLANCAR)
 
 	- Format time/rate with %g using appropriate number of significant
