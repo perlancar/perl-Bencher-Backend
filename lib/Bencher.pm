@@ -875,6 +875,8 @@ $SPEC{format_result} = {
     args_as => 'array',
 };
 sub format_result {
+    require POSIX;
+
     my $envres = shift;
 
     my $ff = $envres->[3]{'table.fields'};
@@ -914,9 +916,14 @@ sub format_result {
     if ($unit) {
         for my $rit (@{$envres->[2]}) {
             my $num_significant_digits =
+                $rit->{errors} == 0 ? 6 :
+                POSIX::round(log($rit->{time} / $rit->{errors})/log(10));
             $rit->{time} = sprintf(
-                "%.${num_significant_digits}f%s",
+                "%.${num_significant_digits}g%s",
                 $rit->{time} * $factor, $unit);
+            $rit->{rate} = sprintf(
+                "%.${num_significant_digits}g", $rit->{rate});
+            $rit->{errors} = sprintf("%.2g", $rit->{errors});
             if (exists $rit->{mod_overhead_time}) {
                 $rit->{mod_overhead_time} = sprintf(
                     "%.5f%s", $rit->{mod_overhead_time} * $factor, $unit);
