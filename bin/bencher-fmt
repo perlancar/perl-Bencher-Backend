@@ -33,6 +33,7 @@ sub format_result {
     Bencher::format_result($envres);
 }
 
+binmode(STDOUT, ":utf8");
 Perinci::CmdLine::Any->new(url => '/main/format_result')->run;
 
 #ABSTRACT: Format bencher result
