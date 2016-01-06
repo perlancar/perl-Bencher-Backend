@@ -940,6 +940,9 @@ sub format_result {
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
+    args_rels => {
+        # XXX precision is only relevant when action=bench
+    },
     args => {
         scenario_file => {
             summary => 'Load a scenario from a Perl file',
@@ -987,6 +990,10 @@ _
                 dataset => $_alias_spec_add_dataset,
                 d => $_alias_spec_add_dataset,
             },
+        },
+        precision => {
+            summary => 'Precision, will be passed to Benchmark::Dumb',
+            schema => ['float*', between=>[0,1]],
         },
         action => {
             schema => ['str*', {
@@ -1548,8 +1555,10 @@ sub bencher {
             $envres->[3]{'func.time_start'} = Time::HiRes::time();
         }
 
+        my $precision = $args{precision} // $parsed->{default_precision} // 0;
+        $log->tracef("Running benchmark (precision=%g) ...", $precision);
         my $tres = Benchmark::Dumb::_timethese_guts(
-            0,
+            $precision,
             {
                 map { $_->{seq} => $_->{code} } @$items
             },
@@ -1830,6 +1839,13 @@ From DefHash, a one-line plaintext summary.
 =item * description (str)
 
 From DefHash, longer description in Markdown.
+
+=item * module_startup (bool)
+
+=item * default_precision (float, between=>[0,1])
+
+Precision to pass to Benchmark::Dumb. Default is 0. Can be overriden via
+C<--precision> (CLI).
 
 =item * on_failure (str, "skip"|"die")
 
