@@ -1474,6 +1474,10 @@ sub bencher {
             for my $mod (@modules) {
                 $code_load->($mod);
             }
+            for my $mod (keys %{$parsed->{modules}}) {
+                next if $mod eq 'perl';
+                $code_load->($mod);
+            }
         }
 
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
