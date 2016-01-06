@@ -869,7 +869,6 @@ $SPEC{format_result} = {
             schema => 'array*', # XXX envres
             req => 1,
             pos => 0,
-            cmdline_src => 'stdin_or_file',
         },
     },
     args_as => 'array',

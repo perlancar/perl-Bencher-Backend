@@ -8,19 +8,27 @@ use strict;
 use warnings;
 
 use Bencher;
+use Function::Fallback::CoreOrPP qw(clone);
 use Perinci::CmdLine::Any;
 
 our %SPEC;
 
-$SPEC{format_result} = $Bencher::SPEC{format_result};
-sub format_result {
-    # pericmd hasn't done automatic decoding yet, here we decode using JSON
-    my $envres = shift;
+$SPEC{format_result} = do {
+    my $meta = clone($Bencher::SPEC{format_result});
 
-    unless (ref($envres->[0])) {
-        require JSON;
-        $envres = JSON::decode_json($envres->[0]);
-    }
+    $meta->{args}{envres}{cmdline_src} = 'stdin_or_file';
+
+    # to avoid warning when cmdline is 'bencher-fmt FILENAME' and periga-argv
+    # tries to decode FILENAME as json because it thinks envres is a data
+    # structure
+    $meta->{args}{envres}{schema} = 'str*';
+
+    $meta;
+};
+sub format_result {
+    require JSON;
+
+    my $envres = JSON::decode_json($_[0]);
 
     Bencher::format_result($envres);
 }
