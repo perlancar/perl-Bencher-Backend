@@ -1,5 +1,13 @@
 Revision history for Bencher
 
+0.23    2016-01-06 (PERLANCAR)
+
+	- Add option: --precision & observe scenario's default_precision
+	  property.
+
+	- [Bugfix] stringify $^V so it survives JSON-ification.
+
+
 0.22    2016-01-05 (PERLANCAR)
 
 	- Formatting fixes.
