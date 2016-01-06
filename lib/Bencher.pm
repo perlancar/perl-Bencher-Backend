@@ -1621,7 +1621,7 @@ sub bencher {
 
     }
 
-    $envres = [304,"No action"];
+    $envres = [400,"Unknown action"];
 
   L_END:
 
