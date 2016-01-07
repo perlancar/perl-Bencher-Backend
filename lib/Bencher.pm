@@ -1307,12 +1307,40 @@ sub bencher {
     my $aibdf;
     $aibdf = 0 if $action =~ /\A(list-(datasets|participants))\z/;
 
+    if ($unparsed->{before_parse_scenario}) {
+        $log->infof("Executing before_parse_scenario hook ...");
+        $unparsed->{before_parse_scenario}->(
+            hook_name => 'before_parse_scenario',
+            scenario  => $unparsed,
+            stash     => $stash,
+        );
+    }
+
     my $parsed = _parse_scenario(
         scenario=>$unparsed,
         parent_args=>\%args,
         apply_include_by_default_filter => $aibdf,
     );
+
+    if ($parsed->{after_parse_scenario}) {
+        $log->infof("Executing after_parse_scenario hook ...");
+        $parsed->{after_parse_scenario}->(
+            hook_name => 'after_parse_scenario',
+            scenario  => $parsed,
+            stash     => $stash,
+        );
+    }
+
     my $module_startup = $args{module_startup} // $parsed->{module_startup};
+
+    if ($parsed->{before_list_datasets}) {
+        $log->infof("Executing before_list_datasets hook ...");
+        $parsed->{before_list_datasets}->(
+            hook_name => 'before_list_datasets',
+            scenario  => $parsed,
+            stash     => $stash,
+        );
+    }
 
     if ($action eq 'list-datasets') {
         unless ($parsed->{datasets}) {
@@ -1349,6 +1377,15 @@ sub bencher {
             if $args{detail};
         $envres = [200, "OK", \@res, \%resmeta];
         goto L_END;
+    }
+
+    if ($parsed->{before_list_participants}) {
+        $log->infof("Executing before_list_participants hook ...");
+        $parsed->{before_list_participants}->(
+            hook_name => 'before_list_participants',
+            scenario  => $parsed,
+            stash     => $stash,
+        );
     }
 
     if ($action eq 'list-participant-modules') {
@@ -1858,33 +1895,66 @@ will "skip" the item.
 
 Can be overriden in the CLI with C<--on-failure> option.
 
+=item * before_parse_scenario (code)
+
+If specified, then this code will be called before parsing scenario. Code will
+be given hash argument with the following keys: C<hook_name> (str, set to
+C<before_gen_items>), C<scenario> (hash, unparsed scenario), C<stash> (hash,
+which you can use to pass data between hooks).
+
+=item * after_parse_scenario (code)
+
+If specified, then this code will be called after parsing scenario. Code will be
+given hash argument with the following keys: C<hook_name>, C<scenario> (hash,
+parsed scenario), C<stash>.
+
+=item * before_list_datasets (code)
+
+If specified, then this code will be called before enumerating datasets from
+scenario. Code will be given hash argument with the following keys:
+C<hook_name>, C<scenario>, C<stash>.
+
+You can use this hook to, e.g.: generate datasets dynamically.
+
+=item * before_list_participants (code)
+
+If specified, then this code will be called before enumerating participants from
+scenario. Code will be given hash argument with the following keys:
+C<hook_name>, C<scenario>, C<stash>.
+
+You can use this hook to, e.g.: generate participants dynamically.
+
 =item * before_gen_items (code)
 
-If specified, then this code will be called before generating items. You can use
-this hook to, e.g.: generate datasets dynamically. Code will be given hash
-argument with the following keys: C<hook_name> (str, set to
-C<before_gen_items>), C<scenario>, C<stash> (hash, which you can use to pass
-data between hooks).
+If specified, then this code will be called before generating items. Code will
+be given hash argument with the following keys: C<hook_name>, C<scenario>,
+C<stash>.
+
+You can use this hook to, e.g.: modify datasets/participants before being
+permuted into items.
 
 =item * before_bench (code)
 
 If specified, then this code will be called before starting the benchmark. Code
-will be given hash argument with the following keys: C<hook_name> (str, set to
-C<before_bench>), C<scenario>, C<stash>.
+will be given hash argument with the following keys: C<hook_name>, C<scenario>,
+C<stash>.
 
 =item * after_bench (code)
 
-If specified, then this code will be called after completing benchmark. You can
-use this hook to, e.g.: do some custom formatting/modification to the result.
-Code will be given hash argument with the following keys: C<hook_name> (str, set
-to C<before_bench>), C<scenario>, C<stash>, C<result> (array, enveloped result).
+If specified, then this code will be called after completing benchmark. Code
+will be given hash argument with the following keys: C<hook_name>, C<scenario>,
+C<stash>, C<result> (array, enveloped result).
+
+You can use this hook to, e.g.: do some custom formatting/modification to the
+result.
 
 =item * before_return (code)
 
 If specified, then this code will be called before displaying/returning the
-result. You can use this hook to, e.g.: modify the result in some way. Code will
-be given hash argument with the following keys: C<hook_name> (str, set to
-C<before_bench>), C<scenario>, C<stash>, C<result>.
+result. Code will be given hash argument with the following keys: C<hook_name>,
+C<scenario>, C<stash>, C<result>.
+
+You can use this hook to, e.g.: modify the result in some way.
 
 =back
 
