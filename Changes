@@ -1,5 +1,18 @@
 Revision history for Bencher
 
+0.24    2016-01-07 (PERLANCAR)
+
+	- [Bugfix] Also add binmode(utf8) to bencher-fmt because it might print
+	  the Greek Mu letter.
+
+	- bencher-fmt: Avoid JSON decoding error warning cmdline is
+	  'bencher-fmt FILENAME' when perisga-argv tries to decode FILENAME
+	  as JSON first.
+
+	- bench: Also load modules specified in scenario's modules property
+	  (mainly to list their versions in the result).
+
+
 0.23    2016-01-06 (PERLANCAR)
 
 	- Add option: --precision & observe scenario's default_precision
