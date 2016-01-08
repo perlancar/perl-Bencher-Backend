@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.25    2016-01-08 (PERLANCAR)
+
+	- Introduce hooks: before_parse_scenario, after_parse_scenario,
+	  before_list_datasets, before_list_participants.
+
+
 0.24    2016-01-07 (PERLANCAR)
 
 	- [Bugfix] Also add binmode(utf8) to bencher-fmt because it might print
