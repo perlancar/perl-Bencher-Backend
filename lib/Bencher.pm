@@ -940,7 +940,7 @@ $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
     args_rels => {
-        # XXX precision is only relevant when action=bench
+        # XXX precision & precision_limit is only relevant when action=bench
     },
     args => {
         scenario_file => {
@@ -992,6 +992,27 @@ _
         },
         precision => {
             summary => 'Precision, will be passed to Benchmark::Dumb',
+            description => <<'_',
+
+This setting overrides `default_precision` property in the scenario.
+
+_
+            schema => ['float*', between=>[0,1]],
+        },
+        precision_limit => {
+            summary => 'Set maximum (=smallest number) precision',
+            description => <<'_',
+
+Instead of setting `precision` which forces a single value, you can also set
+this `precision_limit` setting. If the precision in the scenario is higher
+(=number is smaller) than this limit, then this limit is used. For example, if
+the scenario specifies `default_precision` 0.001 and `precision_limit` is set to
+0.005 then 0.005 is used.
+
+This setting is useful on slower computers which might not be able to reach the
+required precision before hitting maximum number of iterations.
+
+_
             schema => ['float*', between=>[0,1]],
         },
         action => {
@@ -1596,6 +1617,9 @@ sub bencher {
         }
 
         my $precision = $args{precision} // $parsed->{default_precision} // 0;
+        if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
+            $precision = $args{precision_limit};
+        }
         $envres->[3]{'func.precision'} = $precision if $return_resmeta;
 
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
