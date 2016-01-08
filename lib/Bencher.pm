@@ -1596,6 +1596,8 @@ sub bencher {
         }
 
         my $precision = $args{precision} // $parsed->{default_precision} // 0;
+        $envres->[3]{'func.precision'} = $precision if $return_resmeta;
+
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
         my $tres = Benchmark::Dumb::_timethese_guts(
             $precision,
