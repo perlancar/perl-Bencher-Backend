@@ -1,5 +1,12 @@
 Revision history for Bencher
 
+0.26    2016-01-08 (PERLANCAR)
+
+	- Add option: --precision-limit.
+
+	- Add func.precision (used precision setting) to result metadata.
+
+
 0.25    2016-01-08 (PERLANCAR)
 
 	- Introduce hooks: before_parse_scenario, after_parse_scenario,
