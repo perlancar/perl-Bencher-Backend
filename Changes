@@ -1,5 +1,13 @@
 Revision history for Bencher
 
+0.27    2016-01-11 (PERLANCAR)
+
+	- Add on_result_failure.
+
+	- Check item's result and assume failure if item's result is not as
+	  expected.
+
+
 0.26    2016-01-08 (PERLANCAR)
 
 	- Add option: --precision-limit.
