@@ -13,7 +13,8 @@ Revision history for Bencher
           the item, e.g. "participant", "dataset", and other permutations.
           Including each multiple argument value permutation (run included
           scenario Example::MultipleArgValues::Array for a demonstration). This
-          makes for a more readable result table.
+          makes for a more readable result table. As well as a more useful
+          results data as we can later more easily filter/re-sort the results.
 
         - As an added human readability aid, when formatting result as text
           table, we now remove item permutation columns that are constant, to
