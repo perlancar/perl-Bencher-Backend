@@ -948,6 +948,7 @@ sub format_result {
 
     # remove constant item permutation columns to reduce clutter
     {
+        last unless @{$envres->[2]};
         require TableData::Object::aohos;
         my $td = TableData::Object::aohos->new($envres->[2]);
         my @const_cols = $td->const_col_names;
@@ -956,6 +957,17 @@ sub format_result {
             for my $row (@{ $envres->[2] }) {
                 delete $row->{$k};
             }
+        }
+    }
+
+    # remove notes column if there are none
+  REMOVE_NOTES:
+    {
+        for my $row (@{$envres->[2]}) {
+            last REMOVE_NOTES if $row->{notes};
+        }
+        for my $row (@{$envres->[2]}) {
+            delete $row->{notes};
         }
     }
 
