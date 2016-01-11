@@ -1,5 +1,33 @@
 Revision history for Bencher
 
+0.28    2016-01-11 (PERLANCAR)
+
+        - [Bugfix] Fix for on_result_failure='warn', forgot to remove 'next'
+          statement, derp.
+
+        - Add example scenarios: Example::MultipleArgValues::Array &
+          Example::MultipleArgValues::Hash.
+
+        - Instead of just adding item's "name" (which was convoluted
+          JSON-encoded string) to the result, we now add permutation keys from
+          the item, e.g. "participant", "dataset", and other permutations.
+          Including each multiple argument value permutation (run included
+          scenario Example::MultipleArgValues::Array for a demonstration). This
+          makes for a more readable result table.
+
+        - As an added human readability aid, when formatting result as text
+          table, we now remove item permutation columns that are constant, to
+          reduce clutter. For example, if you are benchmarking only a single
+          dataset, the "dataset" column will be omitted from display because we
+          know it only contains the same value. The JSON result will still
+          contain the complete columns though.
+
+        - In dataset's "args" property, multiple-valued argument can now be hash
+          as an alternative to array. This makes for a more readable result
+          because we use the hash keys as the permutation key instead of value
+          (which might be long or less unreadable to human).
+
+
 0.27    2016-01-11 (PERLANCAR)
 
 	- Add on_result_failure.
