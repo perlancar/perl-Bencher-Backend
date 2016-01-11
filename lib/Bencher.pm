@@ -1600,7 +1600,6 @@ sub bencher {
                     } elsif ($on_result_failure eq 'warn' || $action eq 'show-items-results') {
                         warn "Warning: item #$it->{seq} ($it->{name}) ".
                             "has failure (2): $err\n";
-                        next;
                     } else {
                         die "Item #$it->{seq} ($it->{name}) fails (2): $err\n";
                     }
