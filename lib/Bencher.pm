@@ -1292,13 +1292,26 @@ _
             schema => ['str*', in=>[qw/die skip/]],
             description => <<'_',
 
-For command participant, failure means non-zero exit code. For Perl-code
+For a command participant, failure means non-zero exit code. For a Perl-code
 participant, failure means Perl code dies or (if expected result is specified)
 the result is not equal to the expected result.
 
 The default is "die". When set to "skip", will first run the code of each item
 before benchmarking and trap command failure/Perl exception and if that happens,
 will "skip" the item.
+
+_
+        },
+        on_result_failure => {
+            summary => "What to do when there is a result failure",
+            schema => ['str*', in=>[qw/die skip warn/]],
+            description => <<'_',
+
+This is like `on_failure` except that it specifically refer to the failure of
+item's result not being equal to expected result.
+
+There is an extra choice of `warn` for this type of failure, which is to print a
+warning to STDERR and continue.
 
 _
         },
@@ -1543,33 +1556,20 @@ sub bencher {
         }
 
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
+        my $on_result_failure = $args{on_result_failure} //
+            $parsed->{on_result_failure} // $on_failure;
         {
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{name});
-                my $err;
-                {
-                    eval {
-                        my $result_is_list = $participants->[
-                            $it->{_permute}{participant} ]{result_is_list} // 0;
-                        $it->{_result} = $result_is_list ?
-                            [$it->{code}->()] : $it->{code}->();
-                    };
-                    if ($@) {
-                        $err = $@;
-                        last;
-                    }
-                    if (exists($it->{_permute}{dataset}) &&
-                            exists $datasets->[ $it->{_permute}{dataset} ]{result}) {
-                        my $exp_result = $datasets->[ $it->{_permute}{dataset} ]{result};
-                        my $dmp_result = dmp($it->{_result});
-                        my $dmp_exp_result = dmp($exp_result);
-                        if ($dmp_result ne $dmp_exp_result) {
-                            $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
-                        }
-                    }
-                }
+                eval {
+                    my $result_is_list = $participants->[
+                        $it->{_permute}{participant} ]{result_is_list} // 0;
+                    $it->{_result} = $result_is_list ?
+                        [$it->{code}->()] : $it->{code}->();
+                };
+                my $err = $@;
 
                 if ($err) {
                     if ($on_failure eq 'skip' || $action eq 'show-items-results') {
@@ -1580,6 +1580,32 @@ sub bencher {
                         die "Item #$it->{seq} ($it->{name}) fails: $err\n";
                     }
                 }
+
+                $err = "";
+                if (exists($it->{_permute}{dataset}) &&
+                        exists $datasets->[ $it->{_permute}{dataset} ]{result}) {
+                    my $exp_result = $datasets->[ $it->{_permute}{dataset} ]{result};
+                    my $dmp_result = dmp($it->{_result});
+                    my $dmp_exp_result = dmp($exp_result);
+                    if ($dmp_result ne $dmp_exp_result) {
+                        $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
+                    }
+                }
+
+                if ($err) {
+                    if ($on_result_failure eq 'skip') {
+                        warn "Skipping item #$it->{seq} ($it->{name}) ".
+                            "due to failure (2): $err\n";
+                        next;
+                    } elsif ($on_result_failure eq 'warn' || $action eq 'show-items-results') {
+                        warn "Warning: item #$it->{seq} ($it->{name}) ".
+                            "has failure (2): $err\n";
+                        next;
+                    } else {
+                        die "Item #$it->{seq} ($it->{name}) fails (2): $err\n";
+                    }
+                }
+
                 push @$fitems, $it;
             }
             $items = $fitems;
@@ -1936,11 +1962,27 @@ C<--precision> (CLI).
 
 =item * on_failure (str, "skip"|"die")
 
+For a command participant, failure means non-zero exit code. For a Perl-code
+participant, failure means Perl code dies or (if expected result is specified)
+the result is not equal to the expected result.
+
 The default is "die". When set to "skip", will first run the code of each item
 before benchmarking and trap command failure/Perl exception and if that happens,
 will "skip" the item.
 
 Can be overriden in the CLI with C<--on-failure> option.
+
+=item * on_result_failure (str, "skip"|"die"|"warn")
+
+This is like C<on_failure> except that it specifically refer to the failure of
+item's result not being equal to expected result.
+
+The default is the value of C<on_failure>.
+
+There is an extra choice of `warn` for this type of failure, which is to print a
+warning to STDERR and continue.
+
+Can be overriden in the CLI with C<--on-result-failure> option.
 
 =item * before_parse_scenario (code)
 
