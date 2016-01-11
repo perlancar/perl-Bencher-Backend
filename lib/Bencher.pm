@@ -13,24 +13,6 @@ use List::MoreUtils qw(firstidx minmax uniq);
 
 our %SPEC;
 
-sub _uniquify_names {
-    my $recs = shift;
-
-    my $names = [map {$_->{name}} @{ $recs }];
-    if ((grep {!defined} @$names) || scalar(@{[ uniq(@$names) ]}) < @$names) {
-        my $i = -1;
-        my %seen;
-        for my $rec (@$recs) {
-            $i++;
-            $rec->{name} //= '';
-            if ($seen{ $rec->{name} }++ || $rec->{name} eq '') {
-                $rec->{name} .= (length($rec->{name}) ? " " : "") . "#$i";
-                # XXX actually still doesn't guarantee unique name
-            }
-        }
-    }
-}
-
 sub _find_record_by_seq {
     my ($recs, $seq) = @_;
 
@@ -67,7 +49,7 @@ sub _filter_records {
                         last INC;
                     }
                 } else {
-                    if ($rec->{name} eq $inc) {
+                    if (($rec->{name} // $rec->{_name} eq '') eq $inc) {
                         $included++;
                         last INC;
                     }
@@ -81,18 +63,18 @@ sub _filter_records {
                 if ($exc =~ /\A\d+\z/) {
                     next REC if $rec->{seq} == $exc;
                 } else {
-                    next REC if $rec->{name} eq $exc;
+                    next REC if (($rec->{name} // $rec->{_name} // '') eq $exc);
                 }
             }
         }
         if ($include_pattern) {
             next REC unless $rec->{seq} =~ /$include_pattern/i ||
-                $rec->{name} =~ /$include_pattern/i;
+                (($rec->{name} // $rec->{_name} // '') =~ /$include_pattern/i);
             $explicitly_included++;
         }
         if ($exclude_pattern) {
             next REC if $rec->{seq} =~ /$exclude_pattern/i ||
-                $rec->{name} =~ /$exclude_pattern/i;
+                (($rec->{name} // $rec->{_name} // '') =~ /$exclude_pattern/i);
         }
         if ($include_tags && @$include_tags) {
             my $included;
@@ -215,26 +197,29 @@ sub _parse_scenario {
                 }
             }
 
-            # try to come up with a default name for the participant
+            # try to come up with a nicer name for the participant (not
+            # necessarily unique)
             unless (defined($p->{name})) {
                 if ($p->{type} eq 'command') {
-                    my $cmdline = ref($p->{cmdline}) eq 'ARRAY' ?
-                        join(" ", $p->{cmdline}) : $p->{cmdline};
-                    $p->{name} = substr($cmdline, 0, 12);
+                    if (ref($p->{cmdline}) eq 'ARRAY') {
+                        $p->{_name} = substr($p->{cmdline}[0], 0, 20);
+                    } else {
+                        $p->{cmdline} =~ /(\S+)/;
+                        $p->{_name} = substr($1, 0, 20);
+                    }
                 } elsif ($p->{type} eq 'perl_code') {
                     if ($p->{function}) {
-                        $p->{name} = ($p->{module} ? "$p->{module}::" : "").
+                        $p->{_name} =
+                            ($p->{module} ? "$p->{module}::" : "").
                             $p->{function};
                     } elsif ($p->{module}) {
-                        $p->{name} = $p->{module};
+                        $p->{_name} = $p->{module};
                     }
                 }
             }
 
             push @{ $parsed->{participants} }, $p;
         } # for each participant
-
-        _uniquify_names($parsed->{participants});
 
         # filter participants by include/exclude module/function
         if ($apply_filters) {
@@ -301,19 +286,8 @@ sub _parse_scenario {
             $i++;
             my $ds = { %$ds0, seq=>$i };
             $ds->{include_by_default} //= 1;
-
-            # try to come up with a default name for the dataset
-            unless (defined($ds->{name})) {
-                if ($ds->{args}) {
-                    $ds->{name} = substr(dmp($ds->{args}), 0, 14);
-                } elsif ($ds->{argv}) {
-                    $ds->{name} = substr(dmp($ds->{argv}), 0, 14);
-                }
-            }
             push @{ $parsed->{datasets} }, $ds;
         } # for each dataset
-
-        _uniquify_names($parsed->{datasets}) if $parsed->{datasets};
 
         $parsed->{datasets} = _filter_records(
             records => $parsed->{datasets},
@@ -420,13 +394,17 @@ sub _gen_items {
 
     $log->debugf("permute: %s", \@permute);
 
+    # to store multiple argument values that are hash, e.g.
+    # {args=>{sizes=>{"1M"=>1024**2, "1G"=>1024**3, "1T"=>1024**4}}} instead of
+    # array: {args=>{sizes=>[1024**2, 1024**3, 1024**4]}}
+    my %ds_arg_values; # key=ds seq, val=hash(key=arg name, val=arg values)
+
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
     my $item_seq = -1;
     my $items = [];
   ITER:
     while (my $h = $iter->()) {
         $log->tracef("iter returns: %s", $h);
-        my $item_name;
 
         my $p = _find_record_by_seq($participants, $h->{participant});
         my $ds;
@@ -495,9 +473,17 @@ sub _gen_items {
                 (my @multi_keys = grep {/\@\z/} keys %{$ds->{args}})) {
             # we need to permute arguments also
             my @permute_args;
-            for (@multi_keys) {
-                s/\@\z//;
-                push @permute_args, $_ => $ds->{args}{"$_\@"};
+            for my $mk0 (@multi_keys) {
+                my $vals = $ds->{args}{$mk0};
+                my $mk = $mk0; $mk =~ s/\@\z//;
+                if (ref($vals) eq 'HASH') {
+                    push @permute_args, $mk => [sort keys %$vals];
+                    $ds_arg_values{$h->{dataset}}{$mk} = $vals;
+                } elsif(ref($vals) eq 'ARRAY') {
+                    push @permute_args, $mk => $vals;
+                } else {
+                    return [400, "Error in dataset #$h->{dataset} arg '$mk0': value must be hash or array"];
+                }
             }
             $iter_args = Permute::Named::Iter::permute_named_iter(
                 @permute_args);
@@ -546,7 +532,13 @@ sub _gen_items {
                 if ($ds && $ds->{args}) {
                     $args = { %{$ds->{args}} };
                     delete $args->{$_} for (grep {/\@\z/} keys %$args);
-                    $args->{$_} = $h_args->{$_} for keys %$h_args;
+                    for my $arg (keys %$h_args) {
+                        if ($ds_arg_values{$h->{dataset}}{$arg}) {
+                            $args->{$arg} = $ds_arg_values{$h->{dataset}}{$arg}{ $h_args->{$arg} };
+                        } else {
+                            $args->{$arg} = $h_args->{$arg};
+                        }
+                    }
                 }
                 if ($p->{code}) {
                     if ($ds) {
@@ -583,34 +575,54 @@ sub _gen_items {
                 return [400, "Unknown participant type '$p->{type}'"];
             }
 
-            # determine item name
-            {
-                # convert participant's & dataset index to name temporarily, for
-                # nicer item name
-                my %h = (%$h_args, %$h);
-                $h{participant} = $p->{name};
-                $h{dataset} = $ds->{name} if $ds;
-                my @k = keys %h;
-                if (@k == 1) {
-                    $item_name = $h{$k[0]};
-                } else {
-                    $item_name = dmp(\%h);
-                }
-                #$log->tracef("Set item name to: %s", $item_name);
-            }
-
-            push @$items, {
+            my $item = {
                 seq  => $item_seq,
-                name => $item_name,
-                code => $code,
+                _code => $code,
                 _permute => $h,
                 ((_permute_args => $h_args) x !!$ds->{args}),
             };
+            for my $k (keys %$h) {
+                if ($k eq 'dataset') {
+                    $item->{"dataset"} = $ds->{name} // "#$ds->{seq}";
+                } elsif ($k eq 'participant') {
+                    $item->{"participant"} = $p->{name} // $p->{_name} // "#$p->{seq}";
+                } else {
+                    $item->{"item_$k"} = $h->{$k};
+                }
+            }
+            if ($ds->{args}) {
+                for my $k (keys %$h_args) {
+                    $item->{"arg_$k"} = $h_args->{$k};
+                }
+            }
+
+            push @$items, $item;
 
             last ITER_ARGS unless $ds->{args};
         } # ITER_ARGS
 
     } # ITER
+
+    # give each item a convenient name, which is a short combination of its
+    # permutation (unnecessarily unique, just as a human-readable name)
+    {
+        last unless @$items;
+        require TableData::Object::aohos;
+        my $td = TableData::Object::aohos->new($items);
+        my @const_cols = $td->const_col_names;
+
+        my @name_keys;
+        for my $k (sort keys %{$items->[0]}) {
+            next unless $k =~ /^(participant|dataset|item_.+|arg_.+)$/;
+            next if grep {$k eq $_} @const_cols;
+            push @name_keys, $k;
+        }
+
+        for my $it (@$items) {
+            $it->{_name} = join(" ", map {"$_=$it->{$_}"}
+                                    @name_keys);
+        }
+    }
 
     $items = _filter_records(
         records => $items,
@@ -704,7 +716,8 @@ sub _complete_participant {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [map {($_->{seq}, $_->{name})} @{$parsed->{participants}}],
+        array => [grep {defined}
+                      map {($_->{seq}, $_->{name})} @{$parsed->{participants}}],
     );
 }
 
@@ -765,7 +778,8 @@ sub _complete_dataset {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [map {($_->{seq}, $_->{name})} @{$parsed->{datasets}}],
+        array => [grep {defined}
+                      map {($_->{seq}, $_->{name})} @{$parsed->{datasets}}],
     );
 }
 
@@ -833,8 +847,7 @@ sub _complete_item {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [grep {!/\{/} # remove names that are too unwieldy
-                      map {($_->{seq}, $_->{name})} @$items],
+        array => [map {($_->{seq}, $_->{_name})} @$items],
     );
 }
 
@@ -929,6 +942,19 @@ sub format_result {
                 $rit->{mod_overhead_time} = sprintf(
                     "%.${num_significant_digits}g%s",
                     $rit->{mod_overhead_time} * $factor, $unit);
+            }
+        }
+    }
+
+    # remove constant item permutation columns to reduce clutter
+    {
+        require TableData::Object::aohos;
+        my $td = TableData::Object::aohos->new($envres->[2]);
+        my @const_cols = $td->const_col_names;
+        for my $k (@const_cols) {
+            next unless $k =~ /^(item_.+|arg_.+|participant|dataset)$/;
+            for my $row (@{ $envres->[2] }) {
+                delete $row->{$k};
             }
         }
     }
@@ -1436,26 +1462,25 @@ sub bencher {
         my @res;
         my $has_summary = 0;
         for my $p (@{ $parsed->{participants} }) {
-            if ($args{detail}) {
-                my $rec = {
-                    seq      => $p->{seq},
-                    type     => $p->{type},
-                    include_by_default => $p->{include_by_default},
-                    name     => $p->{name},
-                    function => $p->{function},
-                    module   => $p->{module},
-                    cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
-                    tags     => join(", ", @{$p->{tags} // []}),
-                };
-                if (defined $p->{summary}) {
-                    $has_summary = 1;
-                    $rec->{summary} = $p->{summary};
-
-                }
-                push @res, $rec;
-            } else {
-                push @res, $p->{name};
+            my $rec = {
+                seq      => $p->{seq},
+                type     => $p->{type},
+                include_by_default => $p->{include_by_default},
+                name     => $p->{name} // $p->{_name},
+                function => $p->{function},
+                module   => $p->{module},
+                cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
+                tags     => join(", ", @{$p->{tags} // []}),
+            };
+            if (defined $p->{summary}) {
+                $has_summary = 1;
+                $rec->{summary} = $p->{summary};
             }
+            push @res, $rec;
+        }
+
+        unless ($args{detail}) {
+            @res = map {$_->{name}} @res;
         }
         my %resmeta;
         $resmeta{'table.fields'} = [
@@ -1491,21 +1516,24 @@ sub bencher {
     my $items = $res->[2];
 
     if ($action eq 'list-items') {
-        my @res;
-        for my $it (@$items) {
-            if ($args{detail}) {
-                push @res, {
-                    seq      => $it->{seq},
-                    name     => $it->{name},
-                };
-            } else {
-                push @res, $it->{name};
+        my @rows;
+        my @columns;
+        for my $it0 (@$items) {
+            my $it = {%$it0};
+            delete $it->{$_} for grep {/^_/} keys %$it;
+            if (!@columns) {
+                push @columns, sort keys %$it;
+            }
+            push @rows, $it;
+        }
+        unless ($args{detail}) {
+            for (@rows) {
+                $_ = $_->{seq};
             }
         }
         my %resmeta;
-        $resmeta{'table.fields'} = [qw/seq name/]
-            if $args{detail};
-        $envres = [200, "OK", \@res, \%resmeta];
+        $resmeta{'table.fields'} = \@columns if $args{detail};
+        $envres = [200, "OK", \@rows, \%resmeta];
         goto L_END;
     }
 
@@ -1562,48 +1590,50 @@ sub bencher {
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
-                             $it->{seq}, $it->{name});
+                             $it->{seq}, $it->{_name});
                 eval {
-                    my $result_is_list = $participants->[
-                        $it->{_permute}{participant} ]{result_is_list} // 0;
+                    my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
+                    my $result_is_list = $participant->{result_is_list} // 0;
                     $it->{_result} = $result_is_list ?
-                        [$it->{code}->()] : $it->{code}->();
+                        [$it->{_code}->()] : $it->{_code}->();
                 };
                 my $err = $@;
 
                 if ($err) {
                     if ($on_failure eq 'skip' || $action eq 'show-items-results') {
-                        warn "Skipping item #$it->{seq} ($it->{name}) ".
+                        warn "Skipping item #$it->{seq} ($it->{_name}) ".
                             "due to failure: $err\n";
                         next;
                     } else {
-                        die "Item #$it->{seq} ($it->{name}) fails: $err\n";
+                        die "Item #$it->{seq} ($it->{_name}) fails: $err\n";
                     }
                 }
 
                 $err = "";
-                if (exists($it->{_permute}{dataset}) &&
-                        exists $datasets->[ $it->{_permute}{dataset} ]{result}) {
-                    my $exp_result = $datasets->[ $it->{_permute}{dataset} ]{result};
-                    my $dmp_result = dmp($it->{_result});
-                    my $dmp_exp_result = dmp($exp_result);
-                    if ($dmp_result ne $dmp_exp_result) {
-                        $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
+                if (exists $it->{_permute}{dataset}) {
+                    my $dataset = _find_record_by_seq($datasets, $it->{_permute}{dataset});
+                    if (exists $dataset->{result}) {
+                        my $dmp_result = dmp($it->{_result});
+                        my $dmp_exp_result = dmp($dataset->{result});
+                        if ($dmp_result ne $dmp_exp_result) {
+                            $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
+                        }
                     }
                 }
 
                 if ($err) {
                     if ($on_result_failure eq 'skip') {
-                        warn "Skipping item #$it->{seq} ($it->{name}) ".
+                        warn "Skipping item #$it->{seq} ($it->{_name}) ".
                             "due to failure (2): $err\n";
                         next;
                     } elsif ($on_result_failure eq 'warn' || $action eq 'show-items-results') {
-                        warn "Warning: item #$it->{seq} ($it->{name}) ".
+                        warn "Warning: item #$it->{seq} ($it->{_name}) ".
                             "has failure (2): $err\n";
                     } else {
-                        die "Item #$it->{seq} ($it->{name}) fails (2): $err\n";
+                        die "Item #$it->{seq} ($it->{_name}) fails (2): $err\n";
                     }
                 }
+                $it->{_code_error} = $err;
 
                 push @$fitems, $it;
             }
@@ -1617,7 +1647,7 @@ sub bencher {
                 $envres->[2] = join(
                     "",
                     map {(
-                        "#$_->{seq} ($_->{name}):\n",
+                        "#$_->{seq} ($_->{_name}):\n",
                         $_->{_result},
                         "\n\n",
                     )} @$items
@@ -1627,7 +1657,7 @@ sub bencher {
                 $envres->[2] = join(
                     "",
                     map {(
-                        "#$_->{seq} ($_->{name}):\n",
+                        "#$_->{seq} ($_->{_name}):\n",
                         Data::Dump::dump($_->{_result}),
                         "\n\n",
                     )} @$items
@@ -1672,7 +1702,7 @@ sub bencher {
         my $tres = Benchmark::Dumb::_timethese_guts(
             $precision,
             {
-                map { $_->{seq} => $_->{code} } @$items
+                map { $_->{seq} => $_->{_code} } @$items
             },
             "silent",
         );
@@ -1684,19 +1714,29 @@ sub bencher {
             $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
         }
 
+        my @columns = (qw/seq participant dataset/);
+        my @rows;
         for my $seq (sort {$a<=>$b} keys %$tres) {
             my $it = _find_record_by_seq($items, $seq);
-            push @{$envres->[2]}, {
-                seq     => $seq,
-                name    => $it->{name},
+            my $row = {
                 time    => $tres->{$seq}{result}{num},
                 rate    => 1 / $tres->{$seq}{result}{num},
                 samples => $tres->{$seq}{result}{_dbr_nsamples},
                 errors  => $tres->{$seq}{result}{errors}[0],
+                notes   => $it->{_code_error},
             };
+
+            for my $k (sort keys %$it) {
+                next unless $k =~ /^(seq|participant|dataset|item_.+|arg_.+)$/;
+                push @columns, $k unless grep {$k eq $_} @columns;
+                $row->{$k} = $it->{$k};
+            }
+
+            push @rows, $row;
         }
-        $envres->[3]{'table.fields'} =
-            [qw/seq name rate time errors samples/];
+        push @columns, qw/seq rate time errors samples notes/;
+        $envres->[2] = \@rows;
+        $envres->[3]{'table.fields'} = \@columns;
 
         if ($parsed->{after_bench}) {
             $log->infof("Executing after_bench hook ...");
@@ -1913,12 +1953,17 @@ Example:
  {filename=>"ujang.txt", size=>10}
 
 You can supply multiple argument values by adding C<@> suffix to the argument
-name, example:
+name. You then supply an array for the values, example:
 
  {filename=>"ujang.txt", 'size@'=>[10, 100, 1000]}
 
 This means, for each participant mentioning C<size>, three benchmark items will
 be generated, one for each value of C<size>.
+
+Aside from array, you can also use hash for the multiple values. This has a nice
+effect of showing nicer names (in the hash keys) for the argument value, e.g.:
+
+ {filename=>"ujang.txt", 'size@'=>{"1M"=>1024*2, "1G"=>1024**3, "1T"=>1024**4}}
 
 =item * argv (array)
 
