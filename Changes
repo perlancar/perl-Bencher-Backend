@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.29    2016-01-11 (PERLANCAR)
+
+	- [ux] Remove notes column in results table when there are no
+	  notes.
+
+
 0.28    2016-01-11 (PERLANCAR)
 
         - [Bugfix] Fix for on_result_failure='warn', forgot to remove 'next'
