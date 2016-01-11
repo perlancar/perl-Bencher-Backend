@@ -1288,9 +1288,13 @@ _
         },
 
         on_failure => {
-            summary => "What to do when command fails or Perl code dies",
+            summary => "What to do when there is a failure",
             schema => ['str*', in=>[qw/die skip/]],
             description => <<'_',
+
+For command participant, failure means non-zero exit code. For Perl-code
+participant, failure means Perl code dies or (if expected result is specified)
+the result is not equal to the expected result.
 
 The default is "die". When set to "skip", will first run the code of each item
 before benchmarking and trap command failure/Perl exception and if that happens,
@@ -1497,6 +1501,7 @@ sub bencher {
         require Time::HiRes;
 
         my $participants = $parsed->{participants};
+        my $datasets = $parsed->{datasets};
         $envres = [200, "OK", [], {}];
 
         my $return_resmeta =
@@ -1543,13 +1548,29 @@ sub bencher {
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{name});
-                eval {
-                    my $result_is_list = $participants->[
-                        $it->{_permute}{participant} ]{result_is_list} // 0;
-                    $it->{_result} = $result_is_list ?
-                        [$it->{code}->()] : $it->{code}->();
-                };
-                my $err = $@;
+                my $err;
+                {
+                    eval {
+                        my $result_is_list = $participants->[
+                            $it->{_permute}{participant} ]{result_is_list} // 0;
+                        $it->{_result} = $result_is_list ?
+                            [$it->{code}->()] : $it->{code}->();
+                    };
+                    if ($@) {
+                        $err = $@;
+                        last;
+                    }
+                    if (exists($it->{_permute}{dataset}) &&
+                            exists $datasets->[ $it->{_permute}{dataset} ]{result}) {
+                        my $exp_result = $datasets->[ $it->{_permute}{dataset} ]{result};
+                        my $dmp_result = dmp($it->{_result});
+                        my $dmp_exp_result = dmp($exp_result);
+                        if ($dmp_result ne $dmp_exp_result) {
+                            $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
+                        }
+                    }
+                }
+
                 if ($err) {
                     if ($on_failure eq 'skip' || $action eq 'show-items-results') {
                         warn "Skipping item #$it->{seq} ($it->{name}) ".
