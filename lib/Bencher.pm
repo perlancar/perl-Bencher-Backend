@@ -883,95 +883,56 @@ $SPEC{format_result} = {
             req => 1,
             pos => 0,
         },
+        formatters => {
+            summary => 'Formatters specification',
+            schema => ['array*', of=>[
+                'any*', of=>[
+                    'str*',
+                    ['array*', len=>2, elems=>['str*', 'hash*']],
+                ]
+            ]],
+            req => 1,
+            pos => 1,
+        },
     },
     args_as => 'array',
 };
 sub format_result {
     require POSIX;
 
-    my $envres = shift;
+    my ($envres, $formatters) = @_;
 
-    my $ff = $envres->[3]{'table.fields'};
+    $formatters //= [
+        ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
+        'Sort',
+        'ScaleTime',
+        'RoundNumbers',
+        'DeleteConstantFields',
+        'DeleteEmptyNote',
+    ];
 
-    # for module_startup mode: remove 'rate', add 'mod_overhead_time'
-    if ($envres->[3]{'func.module_startup'}) {
-        my $rit_baseline = _find_record_by_seq($envres->[2], 0);
-        for my $rit (@{$envres->[2]}) {
-            delete $rit->{rate};
-            if ($rit_baseline) {
-                $rit->{mod_overhead_time} =
-                    $rit->{time} - $rit_baseline->{time};
-            }
+    # load all formatter modules
+    my @fmtobjs;
+    for my $fmt (@$formatters) {
+        my ($fmtname, $fmtargs);
+        if (ref($fmt)) {
+            $fmtname = $fmt->[0];
+            $fmtargs = $fmt->[1];
+        } else {
+            $fmtname = $fmt;
+            $fmtargs = {};
         }
-        splice @$ff, (firstidx {$_ eq 'rate'} @$ff), 1;
-        splice @$ff, (firstidx {$_ eq 'time'} @$ff)+1, 0, "mod_overhead_time";
+        my $fmtmod = "Bencher::Formatter::$fmtname";
+        my $fmtmod_pm = $fmtmod; $fmtmod_pm =~ s!::!/!g; $fmtmod_pm .= ".pm";
+        require $fmtmod_pm;
+        push @fmtobjs, $fmtmod->new(%$fmtargs);
     }
 
-    # sort by default from slowest to fastest
-    $envres->[2] = [sort {$b->{time} <=> $a->{time}} @{$envres->[2]}];
-
-    # pick an appropriate time unit & format the time
-    my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
-
-    my ($unit, $factor);
-    if ($max <= 1.5e-6) {
-        $unit = "ns";
-        $factor = 1e9;
-    } elsif ($max <= 1.5e-3) {
-        $unit = "\x{03bc}s"; # XXX enable utf
-        $factor = 1e6;
-    } elsif ($max <= 1.5) {
-        $unit = "ms";
-        $factor = 1e3;
+    # run all munge_result()
+    for my $fmtobj (@fmtobjs) {
+        next unless $fmtobj->can("munge_result");
+        $fmtobj->munge_result($envres);
     }
-
-    if ($unit) {
-        for my $rit (@{$envres->[2]}) {
-            my $num_significant_digits =
-                $rit->{errors} == 0 ? 6 :
-                POSIX::round(log($rit->{time} / $rit->{errors})/log(10));
-            $rit->{time} = sprintf(
-                "%.${num_significant_digits}g%s",
-                $rit->{time} * $factor, $unit);
-            if (exists $rit->{rate}) {
-                $rit->{rate} = sprintf(
-                    "%.${num_significant_digits}g", $rit->{rate});
-            }
-            $rit->{errors} = sprintf("%.2g", $rit->{errors});
-            if (exists $rit->{mod_overhead_time}) {
-                $rit->{mod_overhead_time} = sprintf(
-                    "%.${num_significant_digits}g%s",
-                    $rit->{mod_overhead_time} * $factor, $unit);
-            }
-        }
-    }
-
-    # remove constant item permutation columns to reduce clutter
-    {
-        last unless @{$envres->[2]};
-        require TableData::Object::aohos;
-        my $td = TableData::Object::aohos->new($envres->[2]);
-        my @const_cols = $td->const_col_names;
-        for my $k (@const_cols) {
-            next unless $k =~ /^(item_.+|arg_.+|participant|dataset)$/;
-            for my $row (@{ $envres->[2] }) {
-                delete $row->{$k};
-            }
-        }
-    }
-
-    # remove notes column if there are none
-  REMOVE_NOTES:
-    {
-        for my $row (@{$envres->[2]}) {
-            last REMOVE_NOTES if $row->{notes};
-        }
-        for my $row (@{$envres->[2]}) {
-            delete $row->{notes};
-        }
-    }
-
-    $envres;
 }
 
 $SPEC{bencher} = {
