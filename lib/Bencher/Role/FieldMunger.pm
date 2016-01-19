@@ -61,7 +61,7 @@ sub delete_fields {
     for my $i (reverse 0..$#{$ff}) {
         if (grep {$ff->[$i] eq $_} @names) {
             splice @$ff, $i, 1;
-            splice @$fu, $i, 1 if $fu;
+            splice @$fu, $i, 1 if $fu && @$fu > $i;
         }
     }
 }

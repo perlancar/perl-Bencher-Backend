@@ -909,7 +909,8 @@ sub format_result {
         'RoundNumbers',
         ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
         'DeleteConstantFields',
-        'DeleteEmptyNote',
+        'DeleteNotesFieldIfEmpty',
+        'DeleteSeqField',
 
         'RenderAsTextTable',
     ];

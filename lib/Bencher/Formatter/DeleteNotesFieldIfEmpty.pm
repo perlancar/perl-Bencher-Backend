@@ -1,4 +1,4 @@
-package Bencher::Formatter::DeleteEmptyNote;
+package Bencher::Formatter::DeleteNotesFieldIfEmpty;
 
 # DATE
 # VERSION
@@ -11,6 +11,7 @@ use warnings;
 use parent qw(Bencher::Formatter);
 
 use Role::Tiny::With;
+with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
 
 sub munge_result {
@@ -20,10 +21,11 @@ sub munge_result {
         return if $row->{notes};
     }
 
-    for my $row (@{$envres->[2]}) {
-        delete $row->{notes};
-    }
+    $self->delete_fields(
+        $envres,
+        'notes'
+    );
 }
 
 1;
-# ABSTRACT: Delete note field if there are no notes
+# ABSTRACT: Delete notes field if there are no notes
