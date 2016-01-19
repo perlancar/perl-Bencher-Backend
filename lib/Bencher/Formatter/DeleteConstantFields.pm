@@ -10,7 +10,8 @@ use warnings;
 
 use parent qw(Bencher::Formatter);
 
-#with 'Bencher::Role::ResultMunger';
+use Role::Tiny::With;
+with 'Bencher::Role::ResultMunger';
 
 sub munge_result {
     my ($self, $envres) = @_;

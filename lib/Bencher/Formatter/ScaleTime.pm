@@ -13,7 +13,8 @@ use parent qw(Bencher::Formatter);
 use List::MoreUtils qw(minmax);
 use POSIX ();
 
-#with 'Bencher::Role::ResultMunger';
+use Role::Tiny::With;
+with 'Bencher::Role::ResultMunger';
 
 sub munge_result {
     my ($self, $envres) = @_;

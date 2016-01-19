@@ -903,12 +903,15 @@ sub format_result {
     my ($envres, $formatters) = @_;
 
     $formatters //= [
-        ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
         'Sort',
         'ScaleTime',
+        'ScaleRate',
         'RoundNumbers',
+        ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
         'DeleteConstantFields',
         'DeleteEmptyNote',
+
+        'RenderAsTextTable',
     ];
 
     # load all formatter modules
@@ -932,6 +935,12 @@ sub format_result {
     for my $fmtobj (@fmtobjs) {
         next unless $fmtobj->can("munge_result");
         $fmtobj->munge_result($envres);
+    }
+
+    # return the first render_result()
+    for my $fmtobj (@fmtobjs) {
+        next unless $fmtobj->can("render_result");
+        return $fmtobj->render_result($envres);
     }
 }
 
@@ -1726,7 +1735,13 @@ sub bencher {
             my $r = $args{-cmdline_r};
             last unless $r && ($r->{format} // 'text') =~ /text/;
 
-            format_result($envres);
+            $envres = [
+                200, "OK",
+                format_result($envres),
+                {
+                    "cmdline.skip_format" => 1,
+                },
+            ];
         }
 
         if ($return_resmeta) {
