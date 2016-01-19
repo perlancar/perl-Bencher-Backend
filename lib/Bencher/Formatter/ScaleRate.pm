@@ -31,4 +31,6 @@ sub munge_result {
 1;
 # ABSTRACT: Scale rate to make it convenient
 
+=for Pod::Coverage .*
+
 =head1 DESCRIPTION

@@ -1,5 +1,14 @@
 Revision history for Bencher
 
+0.30    2016-01-19 (PERLANCAR)
+
+        - [internal][refactor] Modularize formatting process into formatter
+          modules & roles.
+
+        - Tweak formatted result ('seq' field is by default removed, unit is now
+          moved to header to keep the time fields as pure numbers).
+
+
 0.29    2016-01-11 (PERLANCAR)
 
 	- [ux] Remove notes column in results table when there are no

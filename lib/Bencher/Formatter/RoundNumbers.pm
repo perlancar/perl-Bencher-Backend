@@ -39,3 +39,5 @@ sub munge_result {
 
 1;
 # ABSTRACT: Round numbers (rate, time) to certain significant digits according to errors
+
+=for Pod::Coverage .*

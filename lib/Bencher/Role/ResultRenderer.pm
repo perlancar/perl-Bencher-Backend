@@ -13,3 +13,5 @@ requires 'render_result';
 
 1;
 # ABSTRACT: Results renderer role
+
+=for Pod::Coverage .*

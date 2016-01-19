@@ -13,3 +13,5 @@ requires 'munge_result';
 
 1;
 # ABSTRACT: Result munger role
+
+=for Pod::Coverage .*

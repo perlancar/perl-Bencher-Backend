@@ -14,3 +14,5 @@ sub new {
 
 1;
 # ABSTRACT: Base class for formatter
+
+=for Pod::Coverage .*

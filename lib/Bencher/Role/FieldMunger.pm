@@ -68,3 +68,5 @@ sub delete_fields {
 
 1;
 # ABSTRACT: Field munger role
+
+=for Pod::Coverage .*

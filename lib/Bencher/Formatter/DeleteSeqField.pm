@@ -1,4 +1,4 @@
-package Bencher::Formatter::DeleteNotesFieldIfEmpty;
+package Bencher::Formatter::DeleteSeqField;
 
 # DATE
 # VERSION
@@ -17,17 +17,13 @@ with 'Bencher::Role::ResultMunger';
 sub munge_result {
     my ($self, $envres) = @_;
 
-    for my $row (@{$envres->[2]}) {
-        return if $row->{notes};
-    }
-
     $self->delete_fields(
         $envres,
-        'notes'
+        'seq'
     );
 }
 
 1;
-# ABSTRACT: Delete notes field if there are no notes
+# ABSTRACT: Delete seq field
 
 =for Pod::Coverage .*

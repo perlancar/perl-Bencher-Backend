@@ -57,3 +57,5 @@ sub munge_result {
 
 1;
 # ABSTRACT: Scale time to make it convenient
+
+=for Pod::Coverage .*

@@ -46,6 +46,8 @@ sub munge_result {
 1;
 # ABSTRACT: Munge module_startup results
 
+=for Pod::Coverage .*
+
 =head1 DESCRIPTION
 
 Here's what this formatter does:

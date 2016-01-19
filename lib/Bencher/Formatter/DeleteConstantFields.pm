@@ -33,6 +33,8 @@ sub munge_result {
 1;
 # ABSTRACT: Delete constant fields to reduce clutter
 
+=for Pod::Coverage .*
+
 =head1 DESCRIPTION
 
 Constant fields are fields that exist in every row and have a single value

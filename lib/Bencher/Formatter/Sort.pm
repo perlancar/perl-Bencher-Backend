@@ -23,6 +23,8 @@ sub munge_result {
 1;
 # ABSTRACT: Sort rows
 
+=for Pod::Coverage .*
+
 =head1 DESCRIPTION
 
 By default, sort from slowest (largest C<time> value) to fastest (smallest
