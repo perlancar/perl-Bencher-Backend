@@ -16,6 +16,9 @@ our %SPEC;
 $SPEC{format_result} = do {
     my $meta = clone($Bencher::SPEC{format_result});
 
+    # currently we only use default formatters, but we will allow this
+    delete $meta->{args}{formatters};
+
     $meta->{args}{envres}{cmdline_src} = 'stdin_or_file';
 
     # to avoid warning when cmdline is 'bencher-fmt FILENAME' and periga-argv
@@ -30,7 +33,7 @@ sub format_result {
 
     my $envres = JSON::decode_json($_[0]);
 
-    Bencher::format_result($envres);
+    [200, "OK", Bencher::format_result($envres)];
 }
 
 binmode(STDOUT, ":utf8");
