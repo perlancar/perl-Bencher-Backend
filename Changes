@@ -1,5 +1,11 @@
 Revision history for Bencher
 
+0.32    2016-01-21 (PERLANCAR)
+
+	- Handle case when Dumbbench returns negative time (for small
+	  times).
+
+
 0.31    2016-01-19 (PERLANCAR)
 
 	- [Bugfix] bencher-fmt was broken by recent changes.
