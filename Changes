@@ -1,5 +1,17 @@
 Revision history for Bencher
 
+0.34    2016-01-22 (PERLANCAR)
+
+	- [formatter] Don't delete constant columns if there are less than
+	  two rows in result.
+
+	- Replace POSIX::round() with sprintf(%d) because older version of
+	  POSIX doesn't have round().
+
+	- Move executing before_bench hook before testing code (which is
+	  the first time we run the codes).
+
+
 0.33    2016-01-22 (PERLANCAR)
 
 	- Add option: --note.
