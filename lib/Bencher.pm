@@ -1572,6 +1572,16 @@ sub bencher {
             }
         }
 
+        if ($parsed->{before_bench}) {
+            $log->infof("Executing before_bench hook ...");
+            $parsed->{before_bench}->(
+                hook_name => 'before_bench',
+                scenario  => $parsed,
+                stash     => $stash,
+            );
+        }
+
+        # test code first
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
@@ -1653,15 +1663,6 @@ sub bencher {
                 );
             }
             goto RETURN_RESULT;
-        }
-
-        if ($parsed->{before_bench}) {
-            $log->infof("Executing before_bench hook ...");
-            $parsed->{before_bench}->(
-                hook_name => 'before_bench',
-                scenario  => $parsed,
-                stash     => $stash,
-            );
         }
 
         if ($return_resmeta) {
