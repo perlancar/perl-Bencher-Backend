@@ -950,6 +950,7 @@ $SPEC{bencher} = {
     summary => 'A benchmark framework',
     args_rels => {
         # XXX precision & precision_limit is only relevant when action=bench
+        # XXX note is only relevant when action=bench
     },
     args => {
         scenario_file => {
@@ -1323,6 +1324,11 @@ There is an extra choice of `warn` for this type of failure, which is to print a
 warning to STDERR and continue.
 
 _
+        },
+
+        note => {
+            summary => 'Put additional note in the result',
+            schema => 'str*',
         },
     },
 };
@@ -1750,6 +1756,7 @@ sub bencher {
                 Devel::Platform::Info->new->get_info;
             my $info = Sys::Info->new;
             $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
+            $envres->[3]{'func.note'} = $args{note} if exists $arg{note};
         }
 
       RETURN_RESULT:
