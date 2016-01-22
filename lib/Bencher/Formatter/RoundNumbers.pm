@@ -23,7 +23,7 @@ sub munge_result {
         # 1/'rate' here
         my $num_significant_digits =
             $rit->{errors} == 0 ? 6 :
-            POSIX::round(log( abs(1/$rit->{rate}) / $rit->{errors})/log(10));
+            sprintf("%d", log( abs(1/$rit->{rate}) / $rit->{errors})/log(10));
         my $fmt = "%.${num_significant_digits}g";
         $rit->{time} = sprintf($fmt, $rit->{time});
         if (exists $rit->{rate}) {
