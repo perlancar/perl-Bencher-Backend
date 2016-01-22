@@ -1007,7 +1007,7 @@ _
 This setting overrides `default_precision` property in the scenario.
 
 _
-            schema => ['float*', between=>[0,1]],
+            schema => ['float*', min=>0],
         },
         precision_limit => {
             summary => 'Set maximum (=smallest number) precision',
