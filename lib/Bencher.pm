@@ -1756,7 +1756,7 @@ sub bencher {
                 Devel::Platform::Info->new->get_info;
             my $info = Sys::Info->new;
             $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
-            $envres->[3]{'func.note'} = $args{note} if exists $arg{note};
+            $envres->[3]{'func.note'} = $args{note} if exists $args{note};
         }
 
       RETURN_RESULT:
