@@ -20,6 +20,7 @@ sub munge_result {
         last unless @{$envres->[2]};
         require TableData::Object::aohos;
         my $td = TableData::Object::aohos->new($envres->[2]);
+        last unless $td->row_count >= 2;
         my @const_cols = $td->const_col_names;
         for my $k (@const_cols) {
             next unless $k =~ /^(item_.+|arg_.+|participant|dataset)$/;
