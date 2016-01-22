@@ -1682,7 +1682,8 @@ sub bencher {
             $envres->[3]{'func.time_start'} = Time::HiRes::time();
         }
 
-        my $precision = $args{precision} // $parsed->{default_precision} // 0;
+        my $precision = $args{precision} //
+            $parsed->{precision} // $parsed->{default_precision} // 0;
         if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
             $precision = $args{precision_limit};
         }
