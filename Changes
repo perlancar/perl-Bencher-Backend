@@ -1,5 +1,10 @@
 Revision history for Bencher
 
+0.33    2016-01-22 (PERLANCAR)
+
+	- Add option: --note.
+
+
 0.32    2016-01-21 (PERLANCAR)
 
 	- Handle case when Dumbbench returns negative time (for small
