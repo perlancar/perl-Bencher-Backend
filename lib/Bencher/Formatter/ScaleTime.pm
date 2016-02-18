@@ -19,6 +19,8 @@ with 'Bencher::Role::ResultMunger';
 sub munge_result {
     my ($self, $envres) = @_;
 
+    return unless @{$envres->[2]};
+
     # pick an appropriate time unit & format the time
     my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
 
