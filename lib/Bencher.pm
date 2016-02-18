@@ -900,10 +900,12 @@ $SPEC{format_result} = {
 sub format_result {
     require POSIX;
 
-    my ($envres, $formatters) = @_;
+    my ($envres, $formatters, $opts) = @_;
+
+    $opts //= {};
 
     $formatters //= [
-        'Sort',
+        ['Sort', {by=>$opts->{sort}}],
         'ScaleTime',
         'ScaleRate',
         ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
@@ -952,6 +954,7 @@ $SPEC{bencher} = {
     args_rels => {
         # XXX precision & precision_limit is only relevant when action=bench
         # XXX note is only relevant when action=bench
+        # XXX sort is only relevant when action=bench and format=text
     },
     args => {
         scenario_file => {
@@ -1325,6 +1328,11 @@ There is an extra choice of `warn` for this type of failure, which is to print a
 warning to STDERR and continue.
 
 _
+        },
+
+        sort => {
+            schema => ['array*', of=>'str*', min_len=>1],
+            default => ['-time'],
         },
 
         note => {
@@ -1747,7 +1755,7 @@ sub bencher {
 
             $envres = [
                 200, "OK",
-                format_result($envres),
+                format_result($envres, undef, {sort=>$args{sort}}),
                 {
                     "cmdline.skip_format" => 1,
                 },
