@@ -30,9 +30,16 @@ sub munge_result {
             $rit->{rate} = sprintf($fmt, $rit->{rate});
         }
         $rit->{errors} = sprintf("%.2g", $rit->{errors});
+
+        # XXX this formatter shouldn't be aware directly of mod_overhead_time
         if (exists $rit->{mod_overhead_time}) {
             $rit->{mod_overhead_time} = sprintf(
                 $fmt, $rit->{mod_overhead_time});
+        }
+        # XXX this formatter shouldn't be aware directly of vs_slowest
+        if (exists $rit->{vs_slowest}) {
+            $rit->{vs_slowest} = sprintf(
+                $fmt, $rit->{vs_slowest});
         }
     }
 }
