@@ -1,5 +1,17 @@
 Revision history for Bencher
 
+0.35    2016-02-18 (PERLANCAR)
+
+	- Add option: --sort.
+
+	- Add result field: vs_slowest to compare items more easily.
+
+	- Scenarios often use 'precision' property instead of
+	  'default_precision', so let's accept that too.
+
+	- Allow precision >= 1 (this means number of samples).
+
+
 0.34    2016-01-22 (PERLANCAR)
 
 	- [formatter] Don't delete constant columns if there are less than
