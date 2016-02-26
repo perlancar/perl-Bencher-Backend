@@ -905,12 +905,12 @@ sub format_result {
     $opts //= {};
 
     $formatters //= [
+        'AddVsSlowestField',
+        'RoundNumbers',
         ['Sort', {by=>$opts->{sort}}],
         'ScaleTime',
         'ScaleRate',
         ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
-        'AddVsSlowestField',
-        'RoundNumbers',
         'DeleteConstantFields',
         'DeleteNotesFieldIfEmpty',
         'DeleteSeqField',
