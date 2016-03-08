@@ -64,6 +64,6 @@ $SCHEMAS{bencher_scenario} = [hash => {
 This module contains L<Sah> schemas to validate L<Bencher>.
 
 
-=head1 SEE ALSO
+=head1 append:SEE ALSO
 
 L<Bencher>
