@@ -181,7 +181,7 @@ sub _parse_scenario {
             my $p = { %$p0, seq=>$i };
             $p->{include_by_default} //= 1;
             $p->{type} //= do {
-                if ($p->{cmdline}) {
+                if ($p->{cmdline} || $p->{cmdline_template}) {
                     'command';
                 } else {
                     'perl_code';
@@ -507,17 +507,58 @@ sub _gen_items {
       ITER_ARGS:
         while (my $h_args = $iter_args->()) {
             $item_seq++;
+
+            my $args;
+            if ($ds && $ds->{args}) {
+                $args = { %{$ds->{args}} };
+                delete $args->{$_} for (grep {/\@\z/} keys %$args);
+                for my $arg (keys %$h_args) {
+                    if ($ds_arg_values{$h->{dataset}}{$arg}) {
+                        $args->{$arg} = $ds_arg_values{$h->{dataset}}{$arg}{ $h_args->{$arg} };
+                    } else {
+                        $args->{$arg} = $h_args->{$arg};
+                    }
+                }
+            }
+
             my $code;
             if ($p->{type} eq 'command') {
                 my @cmd;
                 my $shell;
-                if (ref($p->{cmdline}) eq 'ARRAY') {
-                    @cmd = @{ $p->{cmdline} };
-                    $shell = 0;
-                } else {
-                    @cmd = ($p->{cmdline});
-                    $shell = 1;
+                if ($p->{cmdline}) {
+                    if (ref($p->{cmdline}) eq 'ARRAY') {
+                        @cmd = @{ $p->{cmdline} };
+                        $shell = 0;
+                    } else {
+                        @cmd = ($p->{cmdline});
+                        $shell = 1;
+                    }
+                } else { # cmdline_template
+                    my $template_vars;
+                    if ($ds->{args}) {
+                        $template_vars = { %$args };
+                    } elsif ($ds->{argv}) {
+                        $template_vars = { map {$_=>$ds->{argv}[$_]}
+                                               0..$#{ $ds->{argv} } };
+                    }
+                    if (ref($p->{cmdline_template}) eq 'ARRAY') {
+                        @cmd = map {
+                            my $el = $_;
+                            $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
+                            $el;
+                        } @{ $p->{cmdline_template} };
+                        $shell = 0;
+                    } else {
+                        require String::ShellQuote;
+                        my $cmd = $p->{cmdline_template};
+                        $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
+                        @cmd = ($cmd);
+                        $shell = 1;
+                    }
                 }
+
+                $log->debugf("Item #%d: cmdline=%s", $item_seq, \@cmd);
+
                 $code = sub {
                     if ($shell) {
                         system $cmd[0];
@@ -528,18 +569,6 @@ sub _gen_items {
                         if $?;
                 };
             } elsif ($p->{type} eq 'perl_code') {
-                my $args;
-                if ($ds && $ds->{args}) {
-                    $args = { %{$ds->{args}} };
-                    delete $args->{$_} for (grep {/\@\z/} keys %$args);
-                    for my $arg (keys %$h_args) {
-                        if ($ds_arg_values{$h->{dataset}}{$arg}) {
-                            $args->{$arg} = $ds_arg_values{$h->{dataset}}{$arg}{ $h_args->{$arg} };
-                        } else {
-                            $args->{$arg} = $h_args->{$arg};
-                        }
-                    }
-                }
                 if ($p->{code}) {
                     if ($ds) {
                         if ($ds->{argv}) {
