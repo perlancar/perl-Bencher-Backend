@@ -883,22 +883,22 @@ sub _complete_item {
 my $_alias_spec_add_dataset = {
     summary => 'Add a dataset',
     code => sub {
-        require JSON;
+        require JSON::MaybeXS;
 
         my $args = shift;
         push @{ $args->{datasets} },
-            JSON::decode_json($_[0]);
+            JSON::MaybeXS::decode_json($_[0]);
     },
 };
 
 my $_alias_spec_add_participant = {
     summary => 'Add a participant',
     code => sub {
-        require JSON;
+        require JSON::MaybeXS;
 
         my $args = shift;
         push @{ $args->{participants} },
-            JSON::decode_json($_[0]);
+            JSON::MaybeXS::decode_json($_[0]);
     },
 };
 

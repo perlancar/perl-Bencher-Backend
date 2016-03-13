@@ -1,5 +1,13 @@
 Revision history for Bencher
 
+0.36    2016-03-11 (PERLANCAR)
+
+	- [Bugfix] Reorder formatters to avoid division by zero ('rates'
+	  field removed by ModuleStartup formatter).
+
+	- Replace JSON with JSON::MaybeXS.
+
+
 0.35    2016-02-18 (PERLANCAR)
 
 	- Add option: --sort.
