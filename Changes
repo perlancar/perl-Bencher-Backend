@@ -1,6 +1,6 @@
 Revision history for Bencher-Backend
 
-0.39    2016-03-15 (PERLANCAR) (unreleased)
+0.39    2016-03-15 (PERLANCAR)
 
         [ENHANCEMENTS]
 
@@ -11,6 +11,10 @@ Revision history for Bencher-Backend
           then executing the scenario file using each perl executable. This
           means codes that contains closures (references to outside variable)
           won't work correctly.
+
+        - Support benchmarking multiple versions of a module (`--multimodver`).
+          To do this, first add more module search paths using `--include-path`
+          (`-I`).
 
         - In participant, introduce 'perl_cmdline' and 'perl_cmdline_template'
           in addition to 'cmdline' and 'cmdline_template'. They are the same as
