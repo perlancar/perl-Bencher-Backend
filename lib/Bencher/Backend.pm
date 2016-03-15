@@ -1083,7 +1083,7 @@ Perl file will be do()'ed and the last expression should be a hash containing
 the scenario specification.
 
 _
-            schema => 'str*',
+            schema => ['str*'],
             cmdline_aliases => {f=>{}},
         },
         scenario_module => {
@@ -1107,7 +1107,7 @@ _
         participants => {
             'summary' => 'Add participants',
             'x.name.is_plural' => 1,
-            schema => ['array*', of=>'hash*'],
+            schema => ['array*', of=>['hash*']],
             cmdline_aliases => {
                 participant => $_alias_spec_add_participant,
                 p => $_alias_spec_add_participant,
@@ -1116,7 +1116,7 @@ _
         datasets => {
             summary => 'Add datasets',
             'x.name.is_plural' => 1,
-            schema => ['array*', of=>'hash*'],
+            schema => ['array*', of=>['hash*']],
             cmdline_aliases => {
                 dataset => $_alias_spec_add_dataset,
                 d => $_alias_spec_add_dataset,
@@ -1220,7 +1220,7 @@ _
         },
         raw => {
             summary => 'Show "raw" data',
-            schema => 'bool',
+            schema => ['bool'],
             description => <<'_',
 
 When action=show-items-result, will print result as-is instead of dumping as
@@ -1234,7 +1234,7 @@ _
             tags => ['category:action'],
         },
         detail => {
-            schema => 'bool*',
+            schema => ['bool*'],
             cmdline_aliases => {l=>{}},
         },
 
@@ -1242,7 +1242,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Only include modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1255,7 +1255,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Exclude modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to exclude list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1269,7 +1269,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Only include functions specified in this list',
             'summary.alt.plurality.singular' => 'Add function to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_function(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1282,7 +1282,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Exclude functions specified in this list',
             'summary.alt.plurality.singular' => 'Add function to exclude list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_function(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1296,7 +1296,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Only include participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1314,7 +1314,7 @@ _
 You can specify `A & B` to include participants that have _both_ tags A and B.
 
 _
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1322,7 +1322,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Exclude participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1340,7 +1340,7 @@ _
 You can specify `A & B` to exclude participants that have _both_ tags A and B.
 
 _
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1349,7 +1349,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Only include items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1362,7 +1362,7 @@ _
             'x.name.is_plural' => 1,
             summary => 'Exclude items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item to exclude list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1376,26 +1376,26 @@ _
             'x.name.is_plural' => 1,
             summary => 'Only include datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_dataset_pattern => {
             summary => 'Only include datasets matching this regex pattern',
-            schema => 're*',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
         exclude_datasets => {
             'x.name.is_plural' => 1,
             summary => 'Exclude datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset to exclude list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_dataset_pattern => {
             summary => 'Exclude datasets matching this regex pattern',
-            schema => 're*',
+            schema => ['re*'],
             tags => ['category:filtering'],
         },
         include_dataset_tags => {
@@ -1407,7 +1407,7 @@ _
 You can specify `A & B` to include datasets that have _both_ tags A and B.
 
 _
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1420,7 +1420,7 @@ _
 You can specify `A & B` to exclude datasets that have _both_ tags A and B.
 
 _
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
@@ -1433,13 +1433,13 @@ _
 You can specify `A & B` to include datasets that have _both_ tags A and B.
 
 _
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         multiperl => {
             summary => 'Benchmark against multiple perls',
-            schema => 'bool',
+            schema => ['bool'],
             default => 0,
             description => <<'_',
 
@@ -1460,7 +1460,7 @@ _
             'x.name.singular' => 'include_perl',
             summary => 'Only include some perls',
             'summary.alt.plurality.singular' => 'Add specified perl to include list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_perl(@_) },
             tags => ['category:filtering'],
         },
@@ -1469,7 +1469,7 @@ _
             'x.name.singular' => 'exclude_perl',
             summary => 'Exclude some perls',
             'summary.alt.plurality.singular' => 'Add specified perl to exclude list',
-            schema => ['array*', of=>'str*'],
+            schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_perl(@_) },
             tags => ['category:filtering'],
         },
@@ -1504,7 +1504,7 @@ _
         },
 
         sort => {
-            schema => ['array*', of=>'str*', min_len=>1],
+            schema => ['array*', of=>['str*'], min_len=>1],
             default => ['-time'],
         },
 
@@ -1520,12 +1520,12 @@ The default is to true (return extra metadata) unless when run as CLI and format
 is text (where the extra metadata is not shown).
 
 _
-            schema => 'bool',
+            schema => ['bool'],
         },
 
         note => {
             summary => 'Put additional note in the result',
-            schema => 'str*',
+            schema => ['str*'],
             tags => ['category:result'],
         },
     },
