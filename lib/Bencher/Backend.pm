@@ -134,6 +134,7 @@ sub _get_scenario {
     my $scenario;
     if (defined $pargs->{scenario_file}) {
         $scenario = do $pargs->{scenario_file};
+        die "Can't load scenario file '$pargs->{scenario_file}': $@" if $@;
     } elsif (defined $pargs->{scenario_module}) {
         my $m = "Bencher::Scenario::$pargs->{scenario_module}"; $m =~ s!/!::!g;
         my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
@@ -181,7 +182,8 @@ sub _parse_scenario {
             my $p = { %$p0, seq=>$i };
             $p->{include_by_default} //= 1;
             $p->{type} //= do {
-                if ($p->{cmdline} || $p->{cmdline_template}) {
+                if ($p->{cmdline} || $p->{cmdline_template} ||
+                        $p->{perl_cmdline} || $p->{perl_cmdline_template}) {
                     'command';
                 } else {
                     'perl_code';
@@ -344,7 +346,6 @@ sub _gen_items {
     $parsed->{items} = [];
     my @permute;
 
-    # XXX allow permutation of perl path
     # XXX allow permutation of module path
 
     my $participants;
@@ -364,7 +365,7 @@ sub _gen_items {
                 seq  => 0,
                 name => "perl -e1 (baseline)",
                 type => 'command',
-                cmdline => [$^X, "-e1"],
+                perl_cmdline => ["-e1"],
             };
 
             my $i = 0;
@@ -374,7 +375,7 @@ sub _gen_items {
                     seq  => $i,
                     name => $mod,
                     type => 'command',
-                    cmdline => [$^X, "-M$mod", "-e1"],
+                    perl_cmdline => ["-M$mod", "-e1"],
                 };
             }
         }
@@ -384,6 +385,37 @@ sub _gen_items {
             unless @{$parsed->{participants}};
         $participants = $parsed->{participants};
         $datasets = $parsed->{datasets} if $parsed->{datasets};
+    }
+
+    my %perl_exes; # key=name, val=path
+    {
+        my @perls;
+        if ($pargs->{multiperl}) {
+            require App::perlbrew;
+            my $pb = App::perlbrew->new;
+            @perls = $pb->installed_perls;
+            if ($pargs->{include_perls} && @{ $pargs->{include_perls} }) {
+                @perls = grep {
+                    my $p = $_;
+                    (grep { $p->{name} eq $_ } @{ $pargs->{include_perls} }) ? 1:0;
+                } @perls;
+            }
+            if ($pargs->{exclude_perls} && @{ $pargs->{exclude_perls} }) {
+                @perls = grep {
+                    my $p = $_;
+                    (grep { $p->{name} eq $_ } @{ $pargs->{exclude_perls} }) ? 0:1;
+                } @perls;
+            }
+            die "You have to include at least one perl\n" unless @perls;
+            for (@perls) {
+                $perl_exes{$_->{name}} = $_->{executable};
+            }
+            @perls = map {$_->{name}} @perls;
+        } else {
+            $perl_exes{perl} = $^X;
+            @perls = ("perl");
+        }
+        push @permute, "perl", \@perls;
     }
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
@@ -523,9 +555,10 @@ sub _gen_items {
 
             my $code;
             if ($p->{type} eq 'command') {
+                require String::ShellQuote;
                 my @cmd;
                 my $shell;
-                if ($p->{cmdline}) {
+                if (defined $p->{cmdline}) {
                     if (ref($p->{cmdline}) eq 'ARRAY') {
                         @cmd = @{ $p->{cmdline} };
                         $shell = 0;
@@ -533,7 +566,15 @@ sub _gen_items {
                         @cmd = ($p->{cmdline});
                         $shell = 1;
                     }
-                } else { # cmdline_template
+                } elsif (defined $p->{perl_cmdline}) {
+                    if (ref($p->{perl_cmdline}) eq 'ARRAY') {
+                        @cmd = ($perl_exes{$h->{perl}}, @{$h->{perl_args} // []}, @{ $p->{perl_cmdline} });
+                        $shell = 0;
+                    } else {
+                        @cmd = ($perl_exes{$h->{perl}} . (@{$h->{perl_args} // []} ? " ".join(" ", map {String::ShellQuote::shell_quote($_)} @{$h->{perl_args} // []}) : "")." $p->{perl_cmdline}");
+                        $shell = 1;
+                    }
+                } elsif (defined $p->{cmdline_template}) {
                     my $template_vars;
                     if ($ds->{args}) {
                         $template_vars = { %$args };
@@ -549,24 +590,52 @@ sub _gen_items {
                         } @{ $p->{cmdline_template} };
                         $shell = 0;
                     } else {
-                        require String::ShellQuote;
                         my $cmd = $p->{cmdline_template};
                         $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
                         @cmd = ($cmd);
                         $shell = 1;
                     }
+                } elsif (defined $p->{perl_cmdline_template}) {
+                    my $template_vars;
+                    if ($ds->{args}) {
+                        $template_vars = { %$args };
+                    } elsif ($ds->{argv}) {
+                        $template_vars = { map {$_=>$ds->{argv}[$_]}
+                                               0..$#{ $ds->{argv} } };
+                    }
+                    if (ref($p->{perl_cmdline_template}) eq 'ARRAY') {
+                        @cmd = (
+                            $perl_exes{$h->{perl}}, @{$h->{perl_args} // []},
+                            map {
+                                my $el = $_;
+                                $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
+                                $el;
+                            } @{ $p->{perl_cmdline_template} }
+                        );
+                        $shell = 0;
+                    } else {
+                        my $cmd = $perl_exes{$h->{perl}} . (@{$h->{perl_args} // []} ? " ".join(" ", map {String::ShellQuote::shell_quote($_)} @{$h->{perl_args} // []}) : "")." $p->{perl_cmdline_template}";
+                        $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
+                        @cmd = ($cmd);
+                        $shell = 1;
+                    }
+                } else {
+                    die "BUG: Unknown command type";
                 }
 
                 $log->debugf("Item #%d: cmdline=%s", $item_seq, \@cmd);
 
-                $code = sub {
+                {
+                    my $code_str = "sub { ";
                     if ($shell) {
-                        system $cmd[0];
+                        $code_str .= "system ".dmp($cmd[0])."; ";
                     } else {
-                        system {$cmd[0]} @cmd;
+                        $code_str .= "system {".dmp($cmd[0])."} \@{".dmp(\@cmd)."}; ";
                     }
-                    die "Command failed (child error=$?, os error=$!)\n"
-                        if $?;
+                    $code_str .= q[die "Command failed (child error=$?, os error=$!)\\n" if $?];
+                    $code_str .= "}";
+                    $code = eval $code_str;
+                    die "BUG: Can't produce code for cmdline: $@ (code string is: $code_str)" if $@;
                 };
             } elsif ($p->{type} eq 'perl_code') {
                 if ($p->{code}) {
@@ -611,7 +680,10 @@ sub _gen_items {
                 ((_permute_args => $h_args) x !!$ds->{args}),
             };
             for my $k (keys %$h) {
-                if ($k eq 'dataset') {
+                if ($k eq 'perl') {
+                    $item->{perl} = $h->{$k};
+                    $item->{_perl_exe} = $perl_exes{ $h->{$k} };
+                } elsif ($k eq 'dataset') {
                     $item->{"dataset"} = $ds->{name} // "#$ds->{seq}";
                 } elsif ($k eq 'participant') {
                     $item->{"participant"} = $p->{name} // $p->{_name} // "#$p->{seq}";
@@ -880,6 +952,22 @@ sub _complete_item {
     );
 }
 
+sub _complete_perl {
+    require Complete::Util;
+
+    my %args = @_;
+    my $word    = $args{word} // '';
+
+    eval { require App::perlbrew; 1 };
+    return undef if $@;
+
+    my $pb = App::perlbrew->new;
+    my @perls = $pb->installed_perls;
+    local $Complete::Common::OPT_FUZZY = 0;
+    Complete::Util::complete_array_elem(
+        word => $word, array => [map {$_->{name}} @perls]);
+}
+
 my $_alias_spec_add_dataset = {
     summary => 'Add a dataset',
     code => sub {
@@ -984,6 +1072,7 @@ $SPEC{bencher} = {
         # XXX precision & precision_limit is only relevant when action=bench
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
+        # XXX include_perls & exclude_perls are only relevant when multiperl=0
     },
     args => {
         scenario_file => {
@@ -1335,6 +1424,55 @@ _
             element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
+        include_dataset_tags => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include datasets whose tag matches this',
+            'summary.alt.plurality.singular' => 'Add a tag to dataset include tag list',
+            description => <<'_',
+
+You can specify `A & B` to include datasets that have _both_ tags A and B.
+
+_
+            schema => ['array*', of=>'str*'],
+            element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        multiperl => {
+            summary => 'Benchmark against multiple perls',
+            schema => 'bool',
+            default => 0,
+            description => <<'_',
+
+Requires `App::perlbrew` to be installed. Will use installed perls from the
+perlbrew installation. Use `--include-perl` and `--exclude-perl` to include and
+exclude which perls you want.
+
+Each installed perl must have `Bencher::Backend` module installed (in addition
+to having all modules that you want to benchmark, obviously).
+
+Also note that due to the way this is currently implemented, benchmark code that
+contains closures (references to variables outside the code) won't work.
+
+_
+        },
+        include_perls => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'include_perl',
+            summary => 'Only include some perls',
+            'summary.alt.plurality.singular' => 'Add specified perl to include list',
+            schema => ['array*', of=>'str*'],
+            element_completion => sub { _complete_perl(@_) },
+            tags => ['category:filtering'],
+        },
+        exclude_perls => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'exclude_perl',
+            summary => 'Exclude some perls',
+            'summary.alt.plurality.singular' => 'Add specified perl to exclude list',
+            schema => ['array*', of=>'str*'],
+            element_completion => sub { _complete_perl(@_) },
+            tags => ['category:filtering'],
+        },
 
         on_failure => {
             summary => "What to do when there is a failure",
@@ -1511,6 +1649,21 @@ sub bencher {
         my @res;
         my $has_summary = 0;
         for my $p (@{ $parsed->{participants} }) {
+
+            my $cmdline;
+            if ($p->{cmdline_template}) {
+                $cmdline = "#TEMPLATE: ".
+                    (ref($p->{cmdline_template}) eq 'ARRAY' ? join(" ", @{$p->{cmdline_template}}) : $p->{cmdline_template});
+            } elsif ($p->{cmdline}) {
+                $cmdline =
+                    (ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline});
+            } elsif ($p->{perl_cmdline_template}) {
+                $cmdline = "#TEMPLATE: #perl ".
+                    (ref($p->{perl_cmdline_template}) eq 'ARRAY' ? join(" ", @{$p->{perl_cmdline_template}}) : $p->{perl_cmdline_template});
+            } elsif ($p->{cmdline}) {
+                $cmdline = "#perl ".
+                    (ref($p->{perl_cmdline}) eq 'ARRAY' ? join(" ", @{$p->{perl_cmdline}}) : $p->{perl_cmdline});
+            }
             my $rec = {
                 seq      => $p->{seq},
                 type     => $p->{type},
@@ -1518,7 +1671,7 @@ sub bencher {
                 name     => $p->{name} // $p->{_name},
                 function => $p->{function},
                 module   => $p->{module},
-                cmdline  => ref($p->{cmdline}) eq 'ARRAY' ? join(" ", @{$p->{cmdline}}) : $p->{cmdline},
+                cmdline  => $cmdline,
                 tags     => join(", ", @{$p->{tags} // []}),
             };
             if (defined $p->{summary}) {
@@ -1551,7 +1704,7 @@ sub bencher {
     my $items;
   GEN_ITEMS:
     {
-        if ($parsed->{item}) {
+        if ($parsed->{items}) {
             $items = $parsed->{items};
             last;
         }
@@ -1668,6 +1821,7 @@ sub bencher {
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
         {
+            last if $args{multiperl};
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
@@ -1722,6 +1876,7 @@ sub bencher {
         }
 
         if ($action eq 'show-items-results') {
+            die "show-items-results currently not supported on multiperl\n" if $args{multiperl};
             if ($return_meta) {
                 $envres->[2] = [map {$_->{_result}} @$items];
             } elsif ($args{raw}) {
@@ -1772,42 +1927,81 @@ sub bencher {
         $envres->[3]{'func.precision'} = $precision if $return_meta;
 
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
-        my $tres = Benchmark::Dumb::_timethese_guts(
-            $precision,
-            {
-                map { $_->{seq} => $_->{_code} } @$items
-            },
-            "silent",
-        );
-
-        if ($return_meta) {
-            $envres->[3]{'func.time_end'} = Time::HiRes::time();
-            $envres->[3]{'func.elapsed_time'} =
-                $envres->[3]{'func.time_end'} - $envres->[3]{'func.time_start'};
-            $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
-        }
 
         my @columns = (qw/seq participant dataset/);
         my @rows;
-        for my $seq (sort {$a<=>$b} keys %$tres) {
-            my $it = _find_record_by_seq($items, $seq);
-            my $row = {
-                time    => $tres->{$seq}{result}{num},
-                rate    => 1 / $tres->{$seq}{result}{num},
-                samples => $tres->{$seq}{result}{_dbr_nsamples},
-                errors  => $tres->{$seq}{result}{errors}[0],
-                notes   => $it->{_code_error},
-            };
-
-            for my $k (sort keys %$it) {
-                next unless $k =~ /^(seq|participant|dataset|item_.+|arg_.+)$/;
-                push @columns, $k unless grep {$k eq $_} @columns;
-                $row->{$k} = $it->{$k};
+        if ($args{multiperl}) {
+            require Data::Clone;
+            require File::Temp;
+            my %perl_exes;
+            for my $it (@$items) {
+                $perl_exes{$it->{perl}} = $it->{_perl_exe};
             }
 
-            push @rows, $row;
+            my $sc = Data::Clone::clone($parsed);
+            for (keys %$sc) { delete $sc->{$_} if /^(before|after)_/ } # remove all hooks
+
+            my $tempdir = File::Temp::tempdir(CLEANUP => $log->is_debug ? 0:1);
+
+            for my $perl (sort keys %perl_exes) {
+                my $scd_path = "$tempdir/scenario-$perl";
+                $sc->{items} = [grep {$_->{perl} eq $perl} @$items];
+                $log->debugf("Creating scenario dump file for %s at %s", $perl, $scd_path);
+                open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
+                print $fh dmp($sc), ";\n";
+                close $fh;
+                my $res_path = "$tempdir/result-$perl";
+                my $cmd = $perl_exes{$perl} . " -MBencher::Backend -MData::Dmp -e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], return_meta=>0))' > '$res_path'";
+                $log->debugf("Running %s ...", $cmd);
+                system $cmd;
+                die "Failed running bencher for perl $perl (1)" if $?;
+                my $res = do $res_path;
+                die "Failed running bencher for perl $perl (2): can't parse result: $@" if $@;
+                die "Failed running bencher for perl $perl (3): result not an enveloped result" if ref($res) ne 'ARRAY';
+                die "Failed running bencher for perl $perl (4): $res->[0] - $res->[1]" if $res->[0] != 200;
+
+                for my $row (@{ $res->[2] }) {
+                    $row->{perl} = $perl;
+                    push @rows, $row;
+                }
+            }
+        } else {
+            my $tres = Benchmark::Dumb::_timethese_guts(
+                $precision,
+                {
+                    map { $_->{seq} => $_->{_code} } @$items
+                },
+                "silent",
+            );
+
+            if ($return_meta) {
+                $envres->[3]{'func.time_end'} = Time::HiRes::time();
+                $envres->[3]{'func.elapsed_time'} =
+                    $envres->[3]{'func.time_end'} - $envres->[3]{'func.time_start'};
+                $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
+            }
+
+            for my $seq (sort {$a<=>$b} keys %$tres) {
+                my $it = _find_record_by_seq($items, $seq);
+                my $row = {
+                    time    => $tres->{$seq}{result}{num},
+                    rate    => 1 / $tres->{$seq}{result}{num},
+                    samples => $tres->{$seq}{result}{_dbr_nsamples},
+                    errors  => $tres->{$seq}{result}{errors}[0],
+                    notes   => $it->{_code_error},
+                };
+
+                for my $k (sort keys %$it) {
+                    next unless $k =~ /^(seq|participant|dataset|item_.+|arg_.+)$/;
+                    push @columns, $k unless grep {$k eq $_} @columns;
+                    $row->{$k} = $it->{$k};
+                }
+                push @rows, $row;
+            }
         }
+
         push @columns, qw/seq rate time errors samples notes/;
+
         $envres->[2] = \@rows;
         $envres->[3]{'table.fields'} = \@columns;
 

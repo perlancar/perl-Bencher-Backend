@@ -1,5 +1,24 @@
 Revision history for Bencher-Backend
 
+0.39    2016-03-15 (PERLANCAR) (unreleased)
+
+        [ENHANCEMENTS]
+
+        - Support benchmarking against multiple perls (introduce options
+          `--multiperl`, `--include-perl`, `--exclude-perl`). Limitation:
+          Currently this is implemented by dumping (using Data::Dmp, which means
+          using B::Deparse) the items' codes into a temporary scenario file,
+          then executing the scenario file using each perl executable. This
+          means codes that contains closures (references to outside variable)
+          won't work correctly.
+
+        - In participant, introduce 'perl_cmdline' and 'perl_cmdline_template'
+          in addition to 'cmdline' and 'cmdline_template'. They are the same as
+          'cmdline*' except there is implicit first argument which is the perl
+          executable. They are for executing commands using perl, without having
+          to hardcode/include the perl executable location.
+
+
 0.38    2016-03-15 (PERLANCAR)
 
         - First release, split from Bencher distribution.
