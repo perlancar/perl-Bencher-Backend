@@ -1370,9 +1370,25 @@ _
             default => ['-time'],
         },
 
+        return_meta => {
+            summary => 'Whether to return extra metadata',
+            description => <<'_',
+
+When set to true, will return extra metadata such as platform information, CPU
+information, system load before & after the benchmark, system time, and so on.
+This is put in result metadata under `func.*` keys.
+
+The default is to true (return extra metadata) unless when run as CLI and format
+is text (where the extra metadata is not shown).
+
+_
+            schema => 'bool',
+        },
+
         note => {
             summary => 'Put additional note in the result',
             schema => 'str*',
+            tags => ['category:result'],
         },
     },
 };
@@ -1532,21 +1548,29 @@ sub bencher {
         goto L_END;
     }
 
-    if ($parsed->{before_gen_items}) {
-        $log->infof("Executing before_gen_items hook ...");
-        $parsed->{before_gen_items}->(
-            hook_name => 'before_gen_items',
-            scenario  => $parsed,
-            stash     => $stash,
-        );
-    }
+    my $items;
+  GEN_ITEMS:
+    {
+        if ($parsed->{item}) {
+            $items = $parsed->{items};
+            last;
+        }
+        if ($parsed->{before_gen_items}) {
+            $log->infof("Executing before_gen_items hook ...");
+            $parsed->{before_gen_items}->(
+                hook_name => 'before_gen_items',
+                scenario  => $parsed,
+                stash     => $stash,
+            );
+        }
 
-    my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
-    unless ($res->[0] == 200) {
-        $envres = $res;
-        goto L_END;
+        my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
+        unless ($res->[0] == 200) {
+            $envres = $res;
+            goto L_END;
+        }
+        $items = $res->[2];
     }
-    my $items = $res->[2];
 
     if ($action eq 'list-items') {
         my @rows;
@@ -1590,19 +1614,21 @@ sub bencher {
         my $datasets = $parsed->{datasets};
         $envres = [200, "OK", [], {}];
 
-        my $return_resmeta =
-            $args{-cmdline_r} && (($args{-cmdline_r}{format} // '') !~ /json/) ?
-            0 : 1;
+        my $return_meta = $args{return_meta} //
+            (
+                $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
+                    0 : 1
+                  );
 
         $envres->[3]{'func.module_startup'} = $module_startup;
-        $envres->[3]{'func.module_versions'}{perl} = "$^V" if $return_resmeta;
+        $envres->[3]{'func.module_versions'}{perl} = "$^V" if $return_meta;
 
         my $code_load = sub {
             no strict 'refs';
             my $mod = shift;
             $log->tracef("Loading module: %s", $mod);
             Module::Load::load($mod);
-            if ($return_resmeta) {
+            if ($return_meta) {
                 # we'll just use ${"$mod\::VERSION"} because we are already
                 # loading the module
                 $envres->[3]{'func.module_versions'}{$mod} =
@@ -1611,9 +1637,9 @@ sub bencher {
         };
 
         $code_load->('Benchmark::Dumb');
-        $code_load->('Devel::Platform::Info') if $return_resmeta;
-        $code_load->('Sys::Info')             if $return_resmeta;
-        $code_load->('Sys::Load')             if $return_resmeta;
+        $code_load->('Devel::Platform::Info') if $return_meta;
+        $code_load->('Sys::Info')             if $return_meta;
+        $code_load->('Sys::Load')             if $return_meta;
 
         # load all modules
         {
@@ -1696,7 +1722,7 @@ sub bencher {
         }
 
         if ($action eq 'show-items-results') {
-            if ($return_resmeta) {
+            if ($return_meta) {
                 $envres->[2] = [map {$_->{_result}} @$items];
             } elsif ($args{raw}) {
                 $envres->[2] = join(
@@ -1721,7 +1747,7 @@ sub bencher {
             goto RETURN_RESULT;
         }
 
-        if ($return_resmeta) {
+        if ($return_meta) {
             $envres->[3]{'func.bencher_version'} = $Bencher::VERSION;
             $envres->[3]{'func.bencher_args'} = {
                 map {$_=>$args{$_}} grep {!/\A-/} keys %args};
@@ -1743,7 +1769,7 @@ sub bencher {
         if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
             $precision = $args{precision_limit};
         }
-        $envres->[3]{'func.precision'} = $precision if $return_resmeta;
+        $envres->[3]{'func.precision'} = $precision if $return_meta;
 
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
         my $tres = Benchmark::Dumb::_timethese_guts(
@@ -1754,7 +1780,7 @@ sub bencher {
             "silent",
         );
 
-        if ($return_resmeta) {
+        if ($return_meta) {
             $envres->[3]{'func.time_end'} = Time::HiRes::time();
             $envres->[3]{'func.elapsed_time'} =
                 $envres->[3]{'func.time_end'} - $envres->[3]{'func.time_start'};
@@ -1809,7 +1835,7 @@ sub bencher {
             ];
         }
 
-        if ($return_resmeta) {
+        if ($return_meta) {
             $envres->[3]{'func.platform_info'} =
                 Devel::Platform::Info->new->get_info;
             my $info = Sys::Info->new;
