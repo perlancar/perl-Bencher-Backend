@@ -14,7 +14,7 @@ use Role::Tiny::With;
 with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
 
-use Bencher;
+use Bencher::Backend;
 use List::MoreUtils qw(firstidx);
 
 sub munge_result {
@@ -27,7 +27,7 @@ sub munge_result {
         'mod_overhead_time',
         {after=>'time', unit_of=>'time'},
         sub {
-            my $rit_baseline = Bencher::_find_record_by_seq($envres->[2], 0);
+            my $rit_baseline = Bencher::Backend::_find_record_by_seq($envres->[2], 0);
             for my $rit (@{$envres->[2]}) {
                 if ($rit_baseline) {
                     $rit->{mod_overhead_time} =

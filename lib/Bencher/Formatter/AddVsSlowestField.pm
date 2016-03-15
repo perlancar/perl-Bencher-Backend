@@ -14,7 +14,6 @@ use Role::Tiny::With;
 with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
 
-use Bencher;
 use List::MoreUtils qw(firstidx);
 
 sub munge_result {
