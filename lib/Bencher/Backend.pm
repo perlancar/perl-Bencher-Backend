@@ -393,8 +393,10 @@ sub _gen_items {
         my @perls;
         if ($pargs->{multiperl}) {
             require App::perlbrew;
-            my $pb = App::perlbrew->new;
-            @perls = $pb->installed_perls;
+            @perls = grep {$_->{has_bencher}} _list_perls();
+            return [412, "Can't multiperl because no perl has Bencher installed"]
+                unless @perls;
+
             if ($pargs->{include_perls} && @{ $pargs->{include_perls} }) {
                 @perls = grep {
                     my $p = $_;
@@ -1015,20 +1017,48 @@ sub _complete_item {
     );
 }
 
-sub _complete_perl {
-    require Complete::Util;
-
-    my %args = @_;
-    my $word    = $args{word} // '';
+# list installed perls, and check each perl if Bencher::Backend is installed
+sub _list_perls {
+    require Capture::Tiny;
 
     eval { require App::perlbrew; 1 };
     return undef if $@;
 
     my $pb = App::perlbrew->new;
     my @perls = $pb->installed_perls;
+    for my $perl (@perls) {
+        my @cmd = (
+            $perl->{executable},
+            "-MBencher::Backend",
+            "-e'print \$Bencher::Backend::VERSION'",
+        );
+        my ($stdout, $stderr, @res) =
+            Capture::Tiny::capture(sub { system @cmd });
+        if ($stderr || $?) {
+            $perl->{has_bencher} = 0;
+            $perl->{bencher_version} = undef;
+        } else {
+            $perl->{has_bencher} = 1;
+            $perl->{bencher_version} = $stdout;
+        }
+    }
+
+    @perls;
+}
+
+sub _complete_perl {
+    require Complete::Util;
+
+    my %args = @_;
+    my $word    = $args{word} // '';
+
+    my @perls = _list_perls();
+
     local $Complete::Common::OPT_FUZZY = 0;
     Complete::Util::complete_array_elem(
-        word => $word, array => [map {$_->{name}} @perls]);
+        word => $word,
+        array => [map {$_->{name}} grep {$_->{has_bencher}} @perls],
+    );
 }
 
 my $_alias_spec_add_dataset = {
@@ -1214,6 +1244,7 @@ _
         action => {
             schema => ['str*', {
                 in=>[qw/
+                           list-perls
                            list-scenario-modules
                            show-scenario
                            list-participants
@@ -1229,6 +1260,11 @@ _
             default => 'bench',
             cmdline_aliases => {
                 a => {},
+                list_perls => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a list-perls',
+                    code => sub { $_[0]{action} = 'list-perls' },
+                },
                 list_scenario_modules => {
                     is_flag => 1,
                     summary => 'Shortcut for -a list-scenario-modules',
@@ -1508,11 +1544,13 @@ _
             description => <<'_',
 
 Requires `App::perlbrew` to be installed. Will use installed perls from the
-perlbrew installation. Use `--include-perl` and `--exclude-perl` to include and
-exclude which perls you want.
+perlbrew installation. Each installed perl must have `Bencher::Backend` module
+installed (in addition to having all modules that you want to benchmark,
+obviously).
 
-Each installed perl must have `Bencher::Backend` module installed (in addition
-to having all modules that you want to benchmark, obviously).
+By default, only perls having Bencher::Backend will be included. Use
+`--include-perl` and `--exclude-perl` to include and exclude which perls you
+want.
 
 Also note that due to the way this is currently implemented, benchmark code that
 contains closures (references to variables outside the code) won't work.
@@ -1626,6 +1664,33 @@ sub bencher {
 
     my $action = $args{action};
     my $envres;
+
+    if ($action eq 'list-perls') {
+        my @perls = _list_perls();
+        my @res;
+        for my $perl (@perls) {
+            if ($args{detail}) {
+                push @res, {
+                    name            => $perl->{name},
+                    version         => $perl->{version},
+                    has_bencher     => $perl->{has_bencher},
+                    bencher_version => $perl->{bencher_version},
+                };
+            } else {
+                push @res, $perl->{name};
+            }
+        }
+        my %resmeta;
+        $resmeta{'table.fields'} = [
+            'name',
+            'version',
+            'has_bencher',
+            'bencher_version',
+        ] if $args{detail};
+        $envres =
+            [200, "OK", \@res, \%resmeta];
+        goto L_END;
+    }
 
     if ($action eq 'list-scenario-modules') {
         require PERLANCAR::Module::List;
