@@ -352,8 +352,9 @@ sub _gen_items {
     my $datasets;
     my $module_startup = $pargs->{module_startup} // $parsed->{module_startup};
 
+    my @modules = _get_participant_modules($parsed);
+
     if ($module_startup) {
-        my @modules = _get_participant_modules($parsed);
 
         return [412, "There are no modules to benchmark ".
                     "the startup overhead of"]
@@ -416,6 +417,50 @@ sub _gen_items {
             @perls = ("perl");
         }
         push @permute, "perl", \@perls;
+    }
+
+    my %perl_opts; # key=name, val=[opt, ...]
+    if ($pargs->{multimodver}) {
+        require ExtUtils::MakeMaker;
+        require Module::Path::More;
+
+        return [412, "There are no modules to search multiple versions of"]
+            unless @modules;
+
+        return [412, "Module '$pargs->{multimodver}' is not among modules to benchmark"]
+            unless grep {$pargs->{multimodver} eq $_} @modules;
+
+        local @INC = @INC;
+        if ($pargs->{include_path} && @{ $pargs->{include_path} }) {
+            unshift @INC, $_ for reverse @{ $pargs->{include_path} };
+        }
+
+        my %versions; # key=module name
+        my $paths = Module::Path::More::module_path(module=>$pargs->{multimodver}, all=>1);
+
+        if (@$paths < 1) {
+            return [412, "Can't find module '$pargs->{multimodver}', try adding some --include-path"];
+        } elsif (@$paths == 1) {
+            return [412, "Only found one path for module '$pargs->{multimodver}', try adding some --include-path"];
+        }
+        for my $path (@$paths) {
+            my $v = MM->parse_version($path);
+            $v = undef if defined($v) && $v eq 'undef';
+            if (!defined($v)) {
+                $log->warnf("Can't parse version from %s", $path);
+                next;
+            }
+            $versions{$v}++;
+            my $incdir = $path;
+            my $mod_pm = $pargs->{multimodver}; $mod_pm =~ s!::!/!g; $mod_pm .= ".pm";
+            $incdir =~ s!/\Q$mod_pm\E$!!;
+            $perl_opts{$v} //= ["-I$incdir"];
+        }
+        return [412, "Can't find version number for module '$pargs->{multimodver}'"]
+            unless keys(%versions);
+        return [412, "Only found one version of module '$pargs->{multimodver}', try adding some --include-path"]
+            unless keys(%versions) > 1;
+        push @permute, "modver", [keys %versions];
     }
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
@@ -568,10 +613,19 @@ sub _gen_items {
                     }
                 } elsif (defined $p->{perl_cmdline}) {
                     if (ref($p->{perl_cmdline}) eq 'ARRAY') {
-                        @cmd = ($perl_exes{$h->{perl}}, @{$h->{perl_args} // []}, @{ $p->{perl_cmdline} });
+                        @cmd = ($perl_exes{$h->{perl}},
+                                ($h->{modver} ? @{$perl_opts{$h->{modver}}} : ()),
+                                @{ $p->{perl_cmdline} });
                         $shell = 0;
                     } else {
-                        @cmd = ($perl_exes{$h->{perl}} . (@{$h->{perl_args} // []} ? " ".join(" ", map {String::ShellQuote::shell_quote($_)} @{$h->{perl_args} // []}) : "")." $p->{perl_cmdline}");
+                        @cmd = (
+                            join(
+                                " ",
+                                $perl_exes{$h->{perl}},
+                                ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}}} : ()),
+                                $p->{perl_cmdline},
+                            )
+                        );
                         $shell = 1;
                     }
                 } elsif (defined $p->{cmdline_template}) {
@@ -605,7 +659,8 @@ sub _gen_items {
                     }
                     if (ref($p->{perl_cmdline_template}) eq 'ARRAY') {
                         @cmd = (
-                            $perl_exes{$h->{perl}}, @{$h->{perl_args} // []},
+                            $perl_exes{$h->{perl}},
+                            ($h->{modver} ? @{$perl_opts{$h->{modver}}} : ()),
                             map {
                                 my $el = $_;
                                 $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
@@ -614,7 +669,12 @@ sub _gen_items {
                         );
                         $shell = 0;
                     } else {
-                        my $cmd = $perl_exes{$h->{perl}} . (@{$h->{perl_args} // []} ? " ".join(" ", map {String::ShellQuote::shell_quote($_)} @{$h->{perl_args} // []}) : "")." $p->{perl_cmdline_template}";
+                        my $cmd = join(
+                            " ",
+                            $perl_exes{$h->{perl}},
+                            ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}}} : ()),
+                            $p->{perl_cmdline_template},
+                        );
                         $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
                         @cmd = ($cmd);
                         $shell = 1;
@@ -683,6 +743,9 @@ sub _gen_items {
                 if ($k eq 'perl') {
                     $item->{perl} = $h->{$k};
                     $item->{_perl_exe} = $perl_exes{ $h->{$k} };
+                } elsif ($k eq 'modver') {
+                    $item->{modver} = $h->{$k};
+                    $item->{_perl_opts} = $perl_opts{ $h->{$k} };
                 } elsif ($k eq 'dataset') {
                     $item->{"dataset"} = $ds->{name} // "#$ds->{seq}";
                 } elsif ($k eq 'participant') {
@@ -1072,7 +1135,8 @@ $SPEC{bencher} = {
         # XXX precision & precision_limit is only relevant when action=bench
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
-        # XXX include_perls & exclude_perls are only relevant when multiperl=0
+        # XXX include_perls & exclude_perls are only relevant when multiperl=1
+        # XXX include_path only relevant when multimodver=1
     },
     args => {
         scenario_file => {
@@ -1474,6 +1538,33 @@ _
             tags => ['category:filtering'],
         },
 
+        multimodver => {
+            summary => 'Benchmark multiple module versions',
+            schema => ['str*'],
+            description => <<'_',
+
+If set to a module name, will search for all (instead of the first occurrence)
+of the module in `@INC`. Then will generate items for each version.
+
+Currently only one module can be multi version.
+
+_
+            completion => sub { _complete_module(@_, apply_filters=>0) },
+        },
+        include_path => {
+            summary => 'Additional module search paths',
+            'summary.alt.plurality.singular' => 'Add path to module search path',
+            schema => ['array*', of=>['str*']],
+            description => <<'_',
+
+Only relevant when in multimodver mode.
+
+_
+            cmdline_aliases => {I=>{}},
+        },
+        # XXX include-mod-version
+        # XXX exclude-mod-version
+
         on_failure => {
             summary => "What to do when there is a failure",
             schema => ['str*', in=>[qw/die skip/]],
@@ -1821,7 +1912,7 @@ sub bencher {
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
         {
-            last if $args{multiperl};
+            last if $args{multiperl} || $args{multimodver};
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
@@ -1876,7 +1967,7 @@ sub bencher {
         }
 
         if ($action eq 'show-items-results') {
-            die "show-items-results currently not supported on multiperl\n" if $args{multiperl};
+            die "show-items-results currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
             if ($return_meta) {
                 $envres->[2] = [map {$_->{_result}} @$items];
             } elsif ($args{raw}) {
@@ -1930,12 +2021,17 @@ sub bencher {
 
         my @columns = (qw/seq participant dataset/);
         my @rows;
-        if ($args{multiperl}) {
+        if ($args{multiperl} || $args{multimodver}) {
             require Data::Clone;
             require File::Temp;
             my %perl_exes;
+            my %perl_opts;
             for my $it (@$items) {
                 $perl_exes{$it->{perl}} = $it->{_perl_exe};
+                $perl_opts{$it->{modver}} = $it->{_perl_opts} if defined $it->{modver};
+            }
+            if (!keys(%perl_opts)) {
+                $perl_opts{""} = [];
             }
 
             my $sc = Data::Clone::clone($parsed);
@@ -1944,27 +2040,44 @@ sub bencher {
             my $tempdir = File::Temp::tempdir(CLEANUP => $log->is_debug ? 0:1);
 
             for my $perl (sort keys %perl_exes) {
-                my $scd_path = "$tempdir/scenario-$perl";
-                $sc->{items} = [grep {$_->{perl} eq $perl} @$items];
-                $log->debugf("Creating scenario dump file for %s at %s", $perl, $scd_path);
-                open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
-                print $fh dmp($sc), ";\n";
-                close $fh;
-                my $res_path = "$tempdir/result-$perl";
-                my $cmd = $perl_exes{$perl} . " -MBencher::Backend -MData::Dmp -e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], return_meta=>0))' > '$res_path'";
-                $log->debugf("Running %s ...", $cmd);
-                system $cmd;
-                die "Failed running bencher for perl $perl (1)" if $?;
-                my $res = do $res_path;
-                die "Failed running bencher for perl $perl (2): can't parse result: $@" if $@;
-                die "Failed running bencher for perl $perl (3): result not an enveloped result" if ref($res) ne 'ARRAY';
-                die "Failed running bencher for perl $perl (4): $res->[0] - $res->[1]" if $res->[0] != 200;
+                for my $modver (sort keys %perl_opts) {
+                    my $scd_path = "$tempdir/scenario-$perl";
+                    $sc->{items} = [grep {
+                        $_->{perl} eq $perl &&
+                            (length($modver) ? $_->{modver} eq $modver : 1)
+                        } @$items];
+                    $log->debugf("Creating scenario dump file for %s (modver %s) at %s", $perl, $modver, $scd_path);
+                    open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
+                    print $fh dmp($sc), ";\n";
+                    close $fh;
+                    my $res_path = "$tempdir/result-$perl";
+                    my $cmd = join(
+                        " ",
+                        $perl_exes{$perl},
+                        "-MBencher::Backend",
+                        "-MData::Dmp",
+                        @{ $perl_opts{$modver} },
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], return_meta=>0))' > '$res_path'",
+                    );
+                    $log->debugf("Running %s ...", $cmd);
+                    system $cmd;
+                    die "Failed running bencher for perl $perl (1)" if $?;
+                    my $res = do $res_path;
+                    die "Failed running bencher for perl $perl (2): can't parse result: $@" if $@;
+                    die "Failed running bencher for perl $perl (3): result not an enveloped result" if ref($res) ne 'ARRAY';
+                    die "Failed running bencher for perl $perl (4): $res->[0] - $res->[1]" if $res->[0] != 200;
 
-                for my $row (@{ $res->[2] }) {
-                    $row->{perl} = $perl;
-                    push @rows, $row;
-                }
-            }
+                    for my $row (@{ $res->[2] }) {
+                        $row->{perl} = $perl;
+                        push @columns, "perl" unless grep {$_ eq 'perl'} @columns;
+                        if (length $modver) {
+                            $row->{modver} = $modver;
+                            push @columns, "modver" unless grep {$_ eq 'modver'} @columns;
+                        }
+                        push @rows, $row;
+                    }
+                } # for modver
+            } # for perl
         } else {
             my $tres = Benchmark::Dumb::_timethese_guts(
                 $precision,
