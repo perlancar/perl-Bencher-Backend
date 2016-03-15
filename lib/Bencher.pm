@@ -1067,6 +1067,7 @@ _
                            list-participant-modules
                            list-datasets
                            list-items
+                           show-items-codes
                            show-items-results
                            bench
                        /]
@@ -1114,6 +1115,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a list-items',
                     code => sub { $_[0]{action} = 'list-items' },
+                },
+                show_items_codes => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a show-items-codes',
+                    code => sub { $_[0]{action} = 'show-items-codes' },
                 },
                 show_items_results => {
                     is_flag => 1,
@@ -1561,6 +1567,18 @@ sub bencher {
         my %resmeta;
         $resmeta{'table.fields'} = \@columns if $args{detail};
         $envres = [200, "OK", \@rows, \%resmeta];
+        goto L_END;
+    }
+
+    if ($action eq 'show-items-codes') {
+        $envres = [200, "OK", join(
+            "",
+            map {(
+                "#$_->{seq} ($_->{_name}):\n",
+                dmp($_->{_code}),
+                "\n\n",
+            )} @$items
+        )];
         goto L_END;
     }
 
