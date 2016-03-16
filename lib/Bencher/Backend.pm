@@ -346,8 +346,6 @@ sub _gen_items {
     $parsed->{items} = [];
     my @permute;
 
-    # XXX allow permutation of module path
-
     my $participants;
     my $datasets;
     my $module_startup = $pargs->{module_startup} // $parsed->{module_startup};
@@ -355,7 +353,6 @@ sub _gen_items {
     my @modules = _get_participant_modules($parsed);
 
     if ($module_startup) {
-
         return [412, "There are no modules to benchmark ".
                     "the startup overhead of"]
             unless @modules;
