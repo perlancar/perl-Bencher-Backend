@@ -9,7 +9,6 @@ use warnings;
 use Log::Any::IfLOG '$log';
 
 use Data::Dmp;
-use List::MoreUtils qw(firstidx minmax uniq);
 
 our %SPEC;
 

@@ -1,5 +1,16 @@
 Revision history for Bencher-Backend
 
+0.40    2016-03-16 (PERLANCAR)
+
+        - Add action: list-perls; by default only use perls that have
+          Bencher::Backend installed.
+
+        - [Bugfix] Avoid benchmarking duplicate items, e.g. 'perl -e1
+          (baseline)' when in module_startup mode + multimodver mode.
+
+        - [Bugfix] fix calculating mod_overhead_time when in multiperl mode.
+
+
 0.39    2016-03-15 (PERLANCAR)
 
         [ENHANCEMENTS]
