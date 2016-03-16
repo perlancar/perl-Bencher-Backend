@@ -373,6 +373,7 @@ sub _gen_items {
                     seq  => $i,
                     name => $mod,
                     type => 'command',
+                    module => $mod,
                     perl_cmdline => ["-M$mod", "-e1"],
                 };
             }
@@ -476,8 +477,9 @@ sub _gen_items {
     my %ds_arg_values; # key=ds seq, val=hash(key=arg name, val=arg values)
 
     my $iter = Permute::Named::Iter::permute_named_iter(@permute);
-    my $item_seq = -1;
+    my $item_seq = 0;
     my $items = [];
+    my %item_mems; # key=item key, value=1
   ITER:
     while (my $h = $iter->()) {
         $log->tracef("iter returns: %s", $h);
@@ -580,10 +582,15 @@ sub _gen_items {
             };
         }
 
+        # don't permute module versions if participant doesn't involve said
+        # module
+        if ($pargs->{multimodver} && defined($h->{modver}) &&
+                $pargs->{multimodver} ne ($p->{module} // '')) {
+            $h->{modver} = '';
+        }
+
       ITER_ARGS:
         while (my $h_args = $iter_args->()) {
-            $item_seq++;
-
             my $args;
             if ($ds && $ds->{args}) {
                 $args = { %{$ds->{args}} };
@@ -613,7 +620,7 @@ sub _gen_items {
                 } elsif (defined $p->{perl_cmdline}) {
                     if (ref($p->{perl_cmdline}) eq 'ARRAY') {
                         @cmd = ($perl_exes{$h->{perl}},
-                                ($h->{modver} ? @{$perl_opts{$h->{modver}}} : ()),
+                                ($h->{modver} ? @{$perl_opts{$h->{modver}} // []} : ()),
                                 @{ $p->{perl_cmdline} });
                         $shell = 0;
                     } else {
@@ -621,7 +628,7 @@ sub _gen_items {
                             join(
                                 " ",
                                 $perl_exes{$h->{perl}},
-                                ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}}} : ()),
+                                ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}} // []} : ()),
                                 $p->{perl_cmdline},
                             )
                         );
@@ -659,7 +666,7 @@ sub _gen_items {
                     if (ref($p->{perl_cmdline_template}) eq 'ARRAY') {
                         @cmd = (
                             $perl_exes{$h->{perl}},
-                            ($h->{modver} ? @{$perl_opts{$h->{modver}}} : ()),
+                            ($h->{modver} ? @{$perl_opts{$h->{modver}} // []} : ()),
                             map {
                                 my $el = $_;
                                 $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
@@ -671,7 +678,7 @@ sub _gen_items {
                         my $cmd = join(
                             " ",
                             $perl_exes{$h->{perl}},
-                            ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}}} : ()),
+                            ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}} // []} : ()),
                             $p->{perl_cmdline_template},
                         );
                         $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
@@ -733,7 +740,6 @@ sub _gen_items {
             }
 
             my $item = {
-                seq  => $item_seq,
                 _code => $code,
                 _permute => $h,
                 ((_permute_args => $h_args) x !!$ds->{args}),
@@ -758,6 +764,18 @@ sub _gen_items {
                     $item->{"arg_$k"} = $h_args->{$k};
                 }
             }
+
+            # skip duplicate items
+            my $key = dmp [map { $item->{$_} }
+                               grep { !/^_/ }
+                               sort keys %$item];
+            $log->tracef("item key=%s", $key);
+            if ($item_mems{$key}++) {
+                $log->tracef("Duplicate key, skipped item, recycling seq number %d", $item_seq);
+                next ITER;
+            }
+
+            $item->{seq} = $item_seq++;
 
             push @$items, $item;
 
@@ -2101,13 +2119,19 @@ sub bencher {
 
             my $tempdir = File::Temp::tempdir(CLEANUP => $log->is_debug ? 0:1);
 
+            my %item_mems; # key = item seq
             for my $perl (sort keys %perl_exes) {
                 for my $modver (sort keys %perl_opts) {
                     my $scd_path = "$tempdir/scenario-$perl";
-                    $sc->{items} = [grep {
-                        $_->{perl} eq $perl &&
-                            (length($modver) ? $_->{modver} eq $modver : 1)
-                        } @$items];
+                    $sc->{items} = [];
+                    for my $it (@$items) {
+                        next unless $it->{perl} eq $perl;
+                        next unless !length($it->{modver}) ||
+                            $it->{modver} eq $modver;
+                        next if $item_mems{$it->{seq}}++; # avoid duplicate item
+                        push @{$sc->{items}}, $it;
+                    }
+                    #use DD; dd {perl=>$perl, modver=>$modver, items=>$sc->{items}};
                     $log->debugf("Creating scenario dump file for %s (modver %s) at %s", $perl, $modver, $scd_path);
                     open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
                     print $fh dmp($sc), ";\n";
@@ -2118,7 +2142,7 @@ sub bencher {
                         $perl_exes{$perl},
                         "-MBencher::Backend",
                         "-MData::Dmp",
-                        @{ $perl_opts{$modver} },
+                        @{ $perl_opts{$modver} // [] },
                         "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], return_meta=>0))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);

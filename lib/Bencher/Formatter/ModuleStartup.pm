@@ -15,26 +15,30 @@ with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
 
 use Bencher::Backend;
-use List::MoreUtils qw(firstidx);
+use List::Util qw(first);
 
 sub munge_result {
     my ($self, $envres) = @_;
 
     return unless $envres->[3]{'func.module_startup'};
+    return unless @{$envres->[2]};
 
     $self->add_field(
         $envres,
         'mod_overhead_time',
         {after=>'time', unit_of=>'time'},
         sub {
-            my $rit_baseline = Bencher::Backend::_find_record_by_seq($envres->[2], 0);
             for my $rit (@{$envres->[2]}) {
-                if ($rit_baseline) {
-                    $rit->{mod_overhead_time} =
-                        $rit->{time} - $rit_baseline->{time};
-                }
+                my $rit_baseline = first {
+                    $_->{participant} eq 'perl -e1 (baseline)' &&
+                        $_->{perl} eq $rit->{perl}
+                    } @{ $envres->[2] };
+                next unless $rit_baseline;
+
+                $rit->{mod_overhead_time} =
+                    $rit->{time} - $rit_baseline->{time};
             }
-        }
+        },
     );
 
     $self->delete_fields(
