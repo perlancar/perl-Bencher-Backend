@@ -24,6 +24,9 @@ sub munge_result {
     # pick an appropriate time unit & format the time
     my ($min, $max) = minmax(map {$_->{time}} @{$envres->[2]});
 
+    # workaround for bug RT#113117 (max sometimes undef)
+    $max //= $min;
+
     my ($unit, $factor);
     if ($max <= 1.5e-6) {
         $unit = "ns";
