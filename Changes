@@ -1,5 +1,17 @@
 Revision history for Bencher-Backend
 
+0.41    2016-03-18 (PERLANCAR)
+
+	- No functional changes.
+
+	- [Bugfix] Include modver & perl in result items even when in not
+	  multiperl/multimodver mode (ModuleStartup formatter module uses
+	  the perl key).
+
+	- Add workaround for RT#113117 (List::MoreUtils sometimes return
+	  undef max).
+
+
 0.40    2016-03-16 (PERLANCAR)
 
         - Add action: list-perls; by default only use perls that have
