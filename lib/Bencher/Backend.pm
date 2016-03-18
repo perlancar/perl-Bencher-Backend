@@ -2190,7 +2190,7 @@ sub bencher {
                 };
 
                 for my $k (sort keys %$it) {
-                    next unless $k =~ /^(seq|participant|dataset|item_.+|arg_.+)$/;
+                    next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+)$/;
                     push @columns, $k unless grep {$k eq $_} @columns;
                     $row->{$k} = $it->{$k};
                 }
