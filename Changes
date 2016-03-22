@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+0.42    2016-03-22 (PERLANCAR)
+
+	- Allow specifying 'modules' in participant to benchmark startup
+	  overhead of several modules at once.
+
+
 0.41    2016-03-18 (PERLANCAR)
 
 	- No functional changes.
