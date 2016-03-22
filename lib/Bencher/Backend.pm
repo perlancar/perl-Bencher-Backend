@@ -9,6 +9,7 @@ use warnings;
 use Log::Any::IfLOG '$log';
 
 use Data::Dmp;
+use List::Util qw(first);
 
 our %SPEC;
 
@@ -215,6 +216,8 @@ sub _parse_scenario {
                             $p->{function};
                     } elsif ($p->{module}) {
                         $p->{_name} = $p->{module};
+                    } elsif ($p->{modules}) {
+                        $p->{_name} = join("+", @{$p->{modules}});
                     }
                 }
             }
@@ -226,22 +229,26 @@ sub _parse_scenario {
         if ($apply_filters) {
             if ($pargs->{include_modules} && @{ $pargs->{include_modules} }) {
                 $parsed->{participants} = [grep {
-                    defined($_->{module}) && $_->{module} ~~ @{ $pargs->{include_modules} }
-                } @{ $parsed->{participants} }];
+                    (defined($_->{module}) && $_->{module} ~~ @{ $pargs->{include_modules} }) ||
+                        (defined($_->{modules}) && (first { $_ ~~ @{ $pargs->{include_modules} } } @{ $_->{modules} }))
+                    } @{ $parsed->{participants} }];
             }
             if ($pargs->{exclude_modules} && @{ $pargs->{exclude_modules} }) {
                 $parsed->{participants} = [grep {
-                    !defined($_->{module}) || !($_->{module} ~~ @{ $pargs->{exclude_modules} })
+                    !(defined($_->{module}) && $_->{module} ~~ @{ $pargs->{exclude_modules} }) &&
+                    !(defined($_->{modules}) && (first { $_ ~~ @{ $pargs->{exclude_modules} } } @{ $_->{modules} }))
                 } @{ $parsed->{participants} }];
             }
             if ($pargs->{include_module_pattern}) {
                 $parsed->{participants} = [grep {
-                    defined($_->{module}) && $_->{module} =~ qr/$pargs->{include_module_pattern}/i
+                    (defined($_->{module}) && $_->{module} =~ qr/$pargs->{include_module_pattern}/i) ||
+                    (defined($_->{modules}) && (first { /$pargs->{include_module_pattern}/i } @{ $_->{modules} }))
                 } @{ $parsed->{participants} }];
             }
             if ($pargs->{exclude_module_pattern}) {
                 $parsed->{participants} = [grep {
-                    !defined($_->{module}) || $_->{module} !~ qr/$pargs->{exclude_module_pattern}/i
+                    !(defined($_->{module}) && $_->{module} =~ qr/$pargs->{exclude_module_pattern}/i) &&
+                    !(defined($_->{modules}) && (first { /$pargs->{exclude_module_pattern}/i } @{ $_->{modules} }))
                 } @{ $parsed->{participants} }];
             }
 
@@ -312,8 +319,13 @@ sub _get_participant_modules {
 
     my @modules;
     for my $p (@{ $parsed->{participants} }) {
-        next unless defined $p->{module};
-        push @modules, $p->{module} unless $p->{module} ~~ @modules;
+        if (defined $p->{module}) {
+            push @modules, $p->{module} unless $p->{module} ~~ @modules;
+        } elsif (defined $p->{modules}) {
+            for (@{ $p->{modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
+            }
+        }
     }
 
     @modules;
@@ -324,13 +336,13 @@ sub _get_participant_functions {
 
     my $parsed = shift;
 
-    my @modules;
+    my @functions;
     for my $p (@{ $parsed->{participants} }) {
         next unless defined $p->{function};
-        push @modules, $p->{function} unless $p->{function} ~~ @modules;
+        push @functions, $p->{function} unless $p->{function} ~~ @functions;
     }
 
-    @modules;
+    @functions;
 }
 
 sub _gen_items {
@@ -352,31 +364,42 @@ sub _gen_items {
     my @modules = _get_participant_modules($parsed);
 
     if ($module_startup) {
-        return [412, "There are no modules to benchmark ".
-                    "the startup overhead of"]
-            unless @modules;
+        my %mem;
+        # push perl as base-line
+        push @$participants, {
+            seq  => 0,
+            name => "perl -e1 (baseline)",
+            type => 'command',
+            perl_cmdline => ["-e1"],
+        };
 
-        {
-            # push perl as base-line
-            push @$participants, {
-                seq  => 0,
-                name => "perl -e1 (baseline)",
-                type => 'command',
-                perl_cmdline => ["-e1"],
-            };
-
-            my $i = 0;
-            for my $mod (@modules) {
-                $i++;
+        my $i = 0;
+        for my $p0 (@{ $parsed->{participants} }) {
+            my $key;
+            if (defined $p0->{module}) {
+                $key = $p0->{module};
+                next if $mem{$key}++;
                 push @$participants, {
-                    seq  => $i,
-                    name => $mod,
+                    seq  => ++$i,
+                    name => $key,
                     type => 'command',
-                    module => $mod,
-                    perl_cmdline => ["-M$mod", "-e1"],
+                    module => $p0->{module},
+                    perl_cmdline => ["-M$p0->{module}", "-e1"],
+                };
+            } elsif (defined $p0->{modules}) {
+                $key = join("+", @{ $p0->{modules} });
+                next if $mem{$key}++;
+                push @$participants, {
+                    seq  => ++$i,
+                    name => $key,
+                    type => 'command',
+                    modules => $p0->{modules},
+                    perl_cmdline => [(map {"-M$_"} @{ $p0->{modules} }), "-e1"],
                 };
             }
         }
+        return [412, "There are no modules to benchmark ".
+                    "the startup overhead of"] unless %mem;
     } else {
         return [412, "Please load a scenario (-m, -f) or ".
                     "include at least one participant (-p)"]
@@ -1061,6 +1084,7 @@ sub _list_perls {
 }
 
 sub _complete_perl {
+    no warnings 'once';
     require Complete::Util;
 
     my %args = @_;
@@ -1840,7 +1864,7 @@ sub bencher {
                 include_by_default => $p->{include_by_default},
                 name     => $p->{name} // $p->{_name},
                 function => $p->{function},
-                module   => $p->{module},
+                module   => $p->{modules} ? join("+", @{$p->{modules}}) : $p->{module},
                 cmdline  => $cmdline,
                 tags     => join(", ", @{$p->{tags} // []}),
             };
