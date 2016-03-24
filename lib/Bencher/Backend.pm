@@ -139,7 +139,11 @@ sub _get_scenario {
     } elsif (defined $pargs->{scenario_module}) {
         my $m = "Bencher::Scenario::$pargs->{scenario_module}"; $m =~ s!/!::!g;
         my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
-        require $mp;
+        {
+            local @INC = @INC;
+            unshift @INC, $_ for @{ $pargs->{include_path} // [] };
+            require $mp;
+        }
         no strict 'refs';
         $scenario = ${"$m\::scenario"};
     } else {
@@ -1234,7 +1238,6 @@ $SPEC{bencher} = {
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
         # XXX include_perls & exclude_perls are only relevant when multiperl=1
-        # XXX include_path only relevant when multimodver=1
     },
     args => {
         scenario_file => {
@@ -1663,7 +1666,7 @@ _
             schema => ['array*', of=>['str*']],
             description => <<'_',
 
-Only relevant when in multimodver mode.
+Used when searching for scenario module, or when in multimodver mode.
 
 _
             cmdline_aliases => {I=>{}},
@@ -1762,6 +1765,8 @@ sub bencher {
 
     if ($action eq 'list-scenario-modules') {
         require PERLANCAR::Module::List;
+        local @INC = @INC;
+        unshift @INC, $_ for @{ $args{include_path} // [] };
         my $mods = PERLANCAR::Module::List::list_modules(
             'Bencher::Scenario::', {list_modules=>1, recurse=>1});
         $envres =
