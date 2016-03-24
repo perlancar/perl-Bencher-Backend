@@ -9,6 +9,7 @@ use warnings;
 use Log::Any::IfLOG '$log';
 
 use Data::Dmp;
+use List::MoreUtils qw(all);
 use List::Util qw(first);
 
 our %SPEC;
@@ -290,10 +291,39 @@ sub _parse_scenario {
     if ($unparsed->{datasets}) {
         $parsed->{datasets} = [];
         my $i = -1;
-        for my $ds0 (@{ $unparsed->{datasets} }) {
+        my $dss0 = $unparsed->{datasets};
+
+        my $td_args;
+        my @uniq_args;
+
+        for my $ds0 (@$dss0) {
             $i++;
             my $ds = { %$ds0, seq=>$i };
             $ds->{include_by_default} //= 1;
+
+            # try to come up with a nicer name for the dataset (not necessarily
+            # unique): extract from argument values
+            unless (defined($ds->{name})) {
+                unless ($td_args) {
+                    if (all {$_->{args}} @$dss0) {
+                        require TableData::Object::aohos;
+                        $td_args = TableData::Object::aohos->new(
+                            [map {$_->{args}} @$dss0]);
+                        @uniq_args = $td_args->uniq_col_names;
+                    } else {
+                        $td_args = -1;
+                    }
+                }
+                if (@uniq_args > 1) {
+                    $ds->{name} = dmp(
+                        { map {$_ => $ds->{args}{$_}} @uniq_args });
+                } elsif (@uniq_args) {
+                    $ds->{name} = $ds->{args}{$uniq_args[0]};
+                    $ds->{name} = dmp($ds->{name}) if ref($ds->{name});
+                }
+            }
+
+
             push @{ $parsed->{datasets} }, $ds;
         } # for each dataset
 
