@@ -1,5 +1,16 @@
 Revision history for Bencher-Backend
 
+0.43    2016-03-24 (PERLANCAR)
+
+	- [ux] Directory specified in -I (--include-path) is now also used
+	  for searching and loading scenario module, this is so we can say
+	  something like 'bencher -Ilib -m Foo' instead of 'PERL5OPT=-Ilib
+	  bencher -m Foo'.
+
+	- [ux] When a dataset has no name, try to assign a name from
+	  argument value.
+
+
 0.42    2016-03-22 (PERLANCAR)
 
 	- Allow specifying 'modules' in participant to benchmark startup
