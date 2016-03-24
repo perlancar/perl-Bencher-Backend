@@ -872,7 +872,29 @@ sub _gen_items {
     [200, "OK", $items];
 }
 
-sub _complete_module {
+sub _complete_scenario_module {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    return undef unless $cmdline;
+
+    # force reading config file
+    $r->{read_config} = 1;
+    my $res = $cmdline->parse_argv($r);
+    my $args = $res->[2];
+
+    require Complete::Module;
+    {
+        local @INC = @INC;
+        unshift @INC, $_ for @{ $args->{include_path} // [] };
+        Complete::Module::complete_module(
+            word=>$args{word}, ns_prefix=>'Bencher::Scenario');
+    }
+}
+
+sub _complete_participant_module {
     my %args = @_;
     my $word    = $args{word} // '';
     my $cmdline = $args{cmdline};
@@ -1262,12 +1284,7 @@ the scenario specification.
 _
             schema => ['str*', match=>qr!\A\w+((?:::|/)\w+)*\z!],
             cmdline_aliases => {m=>{}},
-            completion => sub {
-                require Complete::Module;
-                my %args = @_;
-                Complete::Module::complete_module(
-                    word=>$args{word}, ns_prefix=>'Bencher::Scenario');
-            },
+            completion => sub { _complete_scenario_module(@_) },
         },
         participants => {
             'summary' => 'Add participants',
@@ -1414,7 +1431,7 @@ _
             summary => 'Only include modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to include list',
             schema => ['array*', of=>['str*']],
-            element_completion => sub { _complete_module(@_, apply_filters=>0) },
+            element_completion => sub { _complete_participant_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         include_module_pattern => {
@@ -1427,7 +1444,7 @@ _
             summary => 'Exclude modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to exclude list',
             schema => ['array*', of=>['str*']],
-            element_completion => sub { _complete_module(@_, apply_filters=>0) },
+            element_completion => sub { _complete_participant_module(@_, apply_filters=>0) },
             tags => ['category:filtering'],
         },
         exclude_module_pattern => {
@@ -1658,7 +1675,7 @@ of the module in `@INC`. Then will generate items for each version.
 Currently only one module can be multi version.
 
 _
-            completion => sub { _complete_module(@_, apply_filters=>0) },
+            completion => sub { _complete_participant_module(@_, apply_filters=>0) },
         },
         include_path => {
             summary => 'Additional module search paths',
