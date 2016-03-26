@@ -1210,10 +1210,11 @@ sub format_result {
 
     $formatters //= [
         'AddVsSlowestField',
-        'RoundNumbers',
         ['Sort', {by=>$opts->{sort}}],
         'ScaleTime',
         'ScaleRate',
+        'ScaleSize',
+        'RoundNumbers',
         ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
         'DeleteConstantFields',
         'DeleteNotesFieldIfEmpty',
@@ -1341,6 +1342,7 @@ _
                            list-items
                            show-items-codes
                            show-items-results
+                           show-items-results-sizes
                            bench
                        /]
                     # list-functions
@@ -1402,6 +1404,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a show-items-results',
                     code => sub { $_[0]{action} = 'show-items-results' },
+                },
+                show_items_results_sizes => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a show-items-results-sizes',
+                    code => sub { $_[0]{action} = 'show-items-results-sizes' },
                 },
             },
             tags => ['category:action'],
@@ -1725,6 +1732,16 @@ _
             default => ['-time'],
         },
 
+        include_result_size => {
+            summary => "Aside from time, also return each item result's memory usage",
+            schema => 'bool',
+            description => <<'_',
+
+Memory size is measured using `Devel::Size`.
+
+_
+        },
+
         return_meta => {
             summary => 'Whether to return extra metadata',
             description => <<'_',
@@ -2005,7 +2022,7 @@ sub bencher {
         goto L_END;
     }
 
-    if ($action =~ /\A(show-items-results|bench)\z/) {
+    if ($action =~ /\A(show-items-results-sizes|show-items-results|bench)\z/) {
         require Module::Load;
         require Time::HiRes;
 
@@ -2066,6 +2083,9 @@ sub bencher {
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
+        my $include_result_size = $args{include_result_size} //
+            $parsed->{include_result_size} // 0;
+        $include_result_size = 1 if $action eq 'show-items-results-sizes';
         {
             last if $args{multiperl} || $args{multimodver};
             my $fitems = [];
@@ -2121,6 +2141,13 @@ sub bencher {
             $items = $fitems;
         }
 
+        if ($include_result_size) {
+            require Devel::Size;
+            for my $it (@$items) {
+                $it->{_result_size} = Devel::Size::total_size($it->{_result});
+            }
+        }
+
         if ($action eq 'show-items-results') {
             die "show-items-results currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
             if ($return_meta) {
@@ -2141,6 +2168,23 @@ sub bencher {
                     map {(
                         "#$_->{seq} ($_->{_name}):\n",
                         Data::Dump::dump($_->{_result}),
+                        "\n\n",
+                    )} @$items
+                );
+            }
+            goto RETURN_RESULT;
+        }
+
+        if ($action eq 'show-items-results-sizes') {
+            die "show-items-results currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+            if ($return_meta) {
+                $envres->[2] = [map {$_->{_result_size}} @$items];
+            } else {
+                $envres->[2] = join(
+                    "",
+                    map {(
+                        "#$_->{seq} ($_->{_name}):\n",
+                        $_->{_result_size},
                         "\n\n",
                     )} @$items
                 );
@@ -2178,6 +2222,7 @@ sub bencher {
         my @rows;
         if ($args{multiperl} || $args{multimodver}) {
             require Data::Clone;
+            require Devel::Size;
             require File::Temp;
             my %perl_exes;
             my %perl_opts;
@@ -2218,7 +2263,7 @@ sub bencher {
                         "-MBencher::Backend",
                         "-MData::Dmp",
                         @{ $perl_opts{$modver} // [] },
-                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], return_meta=>0))' > '$res_path'",
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], include_result_size=>q[$include_result_size], return_meta=>0))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);
                     system $cmd;
@@ -2258,10 +2303,13 @@ sub bencher {
             for my $seq (sort {$a<=>$b} keys %$tres) {
                 my $it = _find_record_by_seq($items, $seq);
                 my $row = {
-                    time    => $tres->{$seq}{result}{num},
                     rate    => 1 / $tres->{$seq}{result}{num},
-                    samples => $tres->{$seq}{result}{_dbr_nsamples},
+                    time    => $tres->{$seq}{result}{num},
+
+                    (result_size => $it->{_result_size}) x !!$include_result_size,
+
                     errors  => $tres->{$seq}{result}{errors}[0],
+                    samples => $tres->{$seq}{result}{_dbr_nsamples},
                     notes   => $it->{_code_error},
                 };
 
@@ -2274,7 +2322,9 @@ sub bencher {
             }
         }
 
-        push @columns, qw/seq rate time errors samples notes/;
+        push @columns, qw/seq rate time/;
+        push @columns, qw/result_size/ if $include_result_size;
+        push @columns, qw/errors samples notes/;
 
         $envres->[2] = \@rows;
         $envres->[3]{'table.fields'} = \@columns;

@@ -10,6 +10,8 @@ use warnings;
 
 use parent qw(Bencher::Formatter);
 
+use Scalar::Util qw(looks_like_number);
+
 use Role::Tiny::With;
 with 'Bencher::Role::ResultMunger';
 
@@ -40,6 +42,12 @@ sub munge_result {
         if (exists $rit->{vs_slowest}) {
             $rit->{vs_slowest} = sprintf(
                 $fmt, $rit->{vs_slowest});
+        }
+
+        for my $col (keys %$rit) {
+            if ($col =~ /^(result_size)$/) {
+                $rit->{$col} = sprintf($fmt, $rit->{$col});
+            }
         }
     }
 }
