@@ -1297,9 +1297,9 @@ commands to run, and datasets are arguments for the codes/commands. Bencher will
 permute the participants and datasets into benchmark items, ready to run.
 
 You can choose to include only some participants, datasets, or items. And there
-are other options to view your scenario's participants/datasets/items/mentioned
-modules, run benchmark against multiple perl and module versions, and so on.
-Bencher comes as a CLI as well as Perl module. See the `Bencher::Backend`
+are options to view your scenario's participants/datasets/items/mentioned
+modules, run benchmark against multiple perls and module versions, and so on.
+Bencher comes as a CLI script as well as Perl module. See the `Bencher::Backend`
 documentation for more information.
 
 _
