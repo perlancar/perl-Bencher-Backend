@@ -1,5 +1,18 @@
 Revision history for Bencher-Backend
 
+0.45    2016-03-30 (PERLANCAR)
+
+	- [ux] Check that what's specified in
+	  --{in,ex}clude-{dataset,participant,item} are actually known, to
+	  avoid silent surprise.
+
+	- [Bugfix] Fix typo that caused sometimes specifying
+	  --include-participant by name doesn't work.
+
+	- [Bugfix] RoundNumbers formatter: no need to round result_size
+	  except when it's not a round number.
+
+
 0.44    2016-03-26 (PERLANCAR)
 
 	- Show result size (as measured by Devel::Size), add
