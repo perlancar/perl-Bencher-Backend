@@ -27,6 +27,7 @@ sub _filter_records {
     my %args = @_;
 
     my $recs = $args{records};
+    my $entity = $args{entity};
     my $include = $args{include};
     my $exclude = $args{exclude};
     my $include_pattern = $args{include_pattern};
@@ -36,6 +37,34 @@ sub _filter_records {
     my $aibdf = $args{apply_include_by_default_filter} // 1;
 
     my $frecs = [];
+
+    # check that what's mentioned in include and exclude are actually in the
+    # records
+    {
+        my @incexc;
+        push @incexc, @$include if $include;
+        push @incexc, @$exclude if $exclude;
+        for my $incexc (@incexc) {
+            my $found;
+            for my $rec (@$recs) {
+                if ($incexc =~ /\A\d+\z/ && $rec->{seq} == $incexc) {
+                    $found++;
+                    last;
+                } elsif (($rec->{name} // $rec->{_name} // '') eq $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity '$incexc' specified in include/exclude, try ".
+                "one of: " .
+                    join(", ",
+                         grep { length($_) }
+                             map { ($_->{seq},
+                                    $_->{name} // $_->{_name} // '') }
+                                 @$recs)
+                unless $found;
+        }
+    }
 
   REC:
     for my $rec (@$recs) {
@@ -280,6 +309,7 @@ sub _parse_scenario {
         }
 
         $parsed->{participants} = _filter_records(
+            entity => 'participant',
             records => $parsed->{participants},
             include => $pargs->{include_participants},
             exclude => $pargs->{exclude_participants},
@@ -332,6 +362,7 @@ sub _parse_scenario {
         } # for each dataset
 
         $parsed->{datasets} = _filter_records(
+            entity => 'dataset',
             records => $parsed->{datasets},
             include => $pargs->{include_datasets},
             exclude => $pargs->{exclude_datasets},
@@ -862,6 +893,7 @@ sub _gen_items {
     }
 
     $items = _filter_records(
+        entity => 'item',
         records => $items,
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
