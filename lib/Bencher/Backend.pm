@@ -50,7 +50,7 @@ sub _filter_records {
                         last INC;
                     }
                 } else {
-                    if (($rec->{name} // $rec->{_name} eq '') eq $inc) {
+                    if (($rec->{name} // $rec->{_name} // '') eq $inc) {
                         $included++;
                         last INC;
                     }
