@@ -119,4 +119,7 @@ Revision history for Bencher-Backend
 
 0.38    2016-03-15 (PERLANCAR)
 
-        - First release, split from Bencher distribution.
+        - First release, split from Bencher distribution to reduce dependencies
+	  when installing Bencher to a perl installation (this is part of
+	  developing support for benchmarking against multiple perls/module
+	  versions).
