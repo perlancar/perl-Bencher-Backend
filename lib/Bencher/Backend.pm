@@ -1802,6 +1802,57 @@ is text (where the extra metadata is not shown).
 
 _
             schema => ['bool'],
+            tags => ['category:result'],
+        },
+
+        save_result => {
+            summary => 'Whether to save benchmark result to file',
+            schema => 'bool*',
+            description => <<'_',
+
+Will also be turned on automatically if `BENCHER_RESULT_DIR` environment
+variabl is defined.
+
+When this is turned on, will save a JSON file after benchmark, containing the
+result along with metadata. The directory of the JSON file will be determined
+from the `results_dir` option, while the filename from the `results_filename`
+option.
+
+_
+        },
+
+        result_dir => {
+            summary => 'Directory to use when saving benchmark result',
+            schema => 'str*',
+            'x.schema.entity' => 'filename',
+            tags => ['category:result'],
+            description => <<'_',
+
+Default is from `BENCHER_RESULT_DIR` environment variable, or the home
+directory.
+
+_
+        },
+        result_filename => {
+            summary => 'Filename to use when saving benchmark result',
+            schema => 'str*',
+            'x.schema.entity' => 'filename',
+            tags => ['category:result'],
+            description => <<'_',
+
+Default is:
+
+    <NAME>.<yyyy-dd-dd-"T"HH-MM-SS>.json
+
+or, when running in module startup mode:
+
+    <NAME>.module_startup.<yyyy-dd-dd-"T"HH-MM-SS>.json
+
+where <NAME> is scenario module name, or `NO_MODULE` if scenario is not from a
+module. The `::` (double colon in the module name will be replaced with `-`
+(dash).
+
+_
         },
 
         note => {
@@ -2077,7 +2128,8 @@ sub bencher {
         my $datasets = $parsed->{datasets};
         $envres = [200, "OK", [], {}];
 
-        my $return_meta = $args{return_meta} //
+        my $save_result = $args{save_result} // !!$ENV{BENCHER_RESULT_DIR};
+        my $return_meta = $args{return_meta} // $save_result //
             (
                 $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
                     0 : 1
@@ -2242,6 +2294,7 @@ sub bencher {
             goto RETURN_RESULT;
         }
 
+        my $time_start = Time::HiRes::time();
         if ($return_meta) {
             $envres->[3]{'func.bencher_version'} = $Bencher::VERSION;
             $envres->[3]{'func.bencher_args'} = {
@@ -2256,7 +2309,7 @@ sub bencher {
                     ${"$mod\::VERSION"};
             }
             $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
-            $envres->[3]{'func.time_start'} = Time::HiRes::time();
+            $envres->[3]{'func.time_start'} = $time_start;
         }
 
         my $precision = $args{precision} //
@@ -2389,6 +2442,45 @@ sub bencher {
             );
         }
 
+        if ($return_meta) {
+            $envres->[3]{'func.platform_info'} =
+                Devel::Platform::Info->new->get_info;
+            my $info = Sys::Info->new;
+            $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
+            $envres->[3]{'func.note'} = $args{note} if exists $args{note};
+        }
+
+        # XXX separate to sub?
+        if ($save_result) {
+            require Data::Clean::JSON;
+            require File::Slurper;
+            require JSON::MaybeXS;
+            require POSIX;
+
+            my $result_dir = $args{result_dir}
+                // $ENV{BENCHER_RESULT_DIR} // $ENV{HOME};
+            my $result_filename = $args{result_filename} // do {
+                my $mod = $args{scenario_module} // "NO_MODULE";
+                $mod =~ s!(::|/)!-!g;
+                sprintf(
+                    "%s%s.%s.json",
+                    $mod,
+                    $module_startup ? ".module_startup" : "",
+                    POSIX::strftime("%Y-%m-%dT%H-%M-%S",
+                                    localtime($time_start)),
+                );
+            };
+            my $path = "$result_dir/$result_filename";
+            my $cleanser = Data::Clean::JSON->get_cleanser;
+            $log->tracef("Saving result to %s ...", $path);
+            File::Slurper::write_text(
+                $path,
+                JSON::MaybeXS::encode_json(
+                    $cleanser->clone_and_clean($envres)
+                )
+            );
+        }
+
       FORMAT:
         {
             my $r = $args{-cmdline_r};
@@ -2401,14 +2493,6 @@ sub bencher {
                     "cmdline.skip_format" => 1,
                 },
             ];
-        }
-
-        if ($return_meta) {
-            $envres->[3]{'func.platform_info'} =
-                Devel::Platform::Info->new->get_info;
-            my $info = Sys::Info->new;
-            $envres->[3]{'func.cpu_info'} = [$info->device('CPU')->identify];
-            $envres->[3]{'func.note'} = $args{note} if exists $args{note};
         }
 
       RETURN_RESULT:
@@ -2452,6 +2536,13 @@ sub parse_scenario {
 
 1;
 #ABSTRACT: Backend for Bencher
+
+=head1 ENVIRONMENT
+
+=head2 BENCHER_RESULT_DIR => str
+
+Set default for C<--results-dir>.
+
 
 =head1 SEE ALSO
 
