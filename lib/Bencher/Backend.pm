@@ -2129,7 +2129,7 @@ sub bencher {
         $envres = [200, "OK", [], {}];
 
         my $save_result = $args{save_result} // !!$ENV{BENCHER_RESULT_DIR};
-        my $return_meta = $args{return_meta} // $save_result //
+        my $return_meta = $args{return_meta} // ($save_result ? 1:undef) //
             (
                 $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
                     0 : 1
