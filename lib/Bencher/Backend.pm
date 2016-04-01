@@ -2104,7 +2104,7 @@ sub bencher {
         $code_load->('Sys::Info')             if $return_meta;
         $code_load->('Sys::Load')             if $return_meta;
 
-        # load all modules
+        # load all participant modules
         {
             my %seen;
             my @modules = _get_participant_modules($parsed);
@@ -2116,6 +2116,9 @@ sub bencher {
                 $code_load->($mod);
             }
         }
+
+        # loading extra modules
+        $code_load->($_) for @{ $parsed->{extra_modules} // [] };
 
         if ($parsed->{before_bench}) {
             $log->infof("Executing before_bench hook ...");

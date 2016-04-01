@@ -48,6 +48,7 @@ $SCHEMAS{bencher_scenario} = [hash => {
         },
         on_failure => {}, # die*, skip
         module_startup => {},
+        extra_modules => {},
     },
 }];
 
