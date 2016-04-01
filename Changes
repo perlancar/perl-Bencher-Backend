@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.002   2016-04-01 (PERLANCAR)
+
+	- [Bug] Logic bug: --return-meta accidentally defaulted to off when
+	  --save-result is not enabled.
+
+
 1.001   2016-04-01 (PERLANCAR)
 
 	- Turn off include_result_size when in module startup mode.
