@@ -2188,6 +2188,7 @@ sub bencher {
         my $include_result_size = $args{include_result_size} //
             $parsed->{include_result_size} // 0;
         $include_result_size = 1 if $action eq 'show-items-results-sizes';
+        $include_result_size = 0 if $module_startup;
         {
             last if $args{multiperl} || $args{multimodver};
             my $fitems = [];
