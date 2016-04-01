@@ -1,5 +1,17 @@
 Revision history for Bencher-Backend
 
+1.001   2016-04-01 (PERLANCAR)
+
+	- Turn off include_result_size when in module startup mode.
+
+	- Add feature to save result to a JSON file (--save-result,
+	  --result-dir, --result-filename).
+
+	- Grok scenario property 'extra_modules' to allow extra modules to
+	  be loaded and their versions recorded in benchmark result
+	  metadata.
+
+
 1.000   2016-03-31 (PERLANCAR)
 
         - No functional changes.
