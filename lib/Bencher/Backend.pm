@@ -1824,7 +1824,7 @@ _
         result_dir => {
             summary => 'Directory to use when saving benchmark result',
             schema => 'str*',
-            'x.schema.entity' => 'filename',
+            'x.schema.entity' => 'dirname',
             tags => ['category:result'],
             description => <<'_',
 
@@ -2128,7 +2128,9 @@ sub bencher {
         my $datasets = $parsed->{datasets};
         $envres = [200, "OK", [], {}];
 
-        my $save_result = $args{save_result} // !!$ENV{BENCHER_RESULT_DIR};
+        my $result_dir = $args{result_dir}
+            // $ENV{BENCHER_RESULT_DIR} // $ENV{HOME};
+        my $save_result = $args{save_result} // !!$result_dir;
         my $return_meta = $args{return_meta} // ($save_result ? 1:undef) //
             (
                 $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
@@ -2458,8 +2460,6 @@ sub bencher {
             require JSON::MaybeXS;
             require POSIX;
 
-            my $result_dir = $args{result_dir}
-                // $ENV{BENCHER_RESULT_DIR} // $ENV{HOME};
             my $result_filename = $args{result_filename} // do {
                 my $mod = $args{scenario_module} // "NO_MODULE";
                 $mod =~ s!(::|/)!-!g;
