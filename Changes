@@ -1,5 +1,14 @@
 Revision history for Bencher-Backend
 
+1.003   2016-04-03 (PERLANCAR)
+
+	- [Bugfix] completer for participant/dataset name didn't include
+	  generated names.
+
+	- [Bugfix] save_result was not turned on automatically when user
+	  sets result_dir.
+
+
 1.002   2016-04-01 (PERLANCAR)
 
 	- [Bug] Logic bug: --return-meta accidentally defaulted to off when
