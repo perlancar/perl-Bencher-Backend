@@ -1008,7 +1008,8 @@ sub _complete_participant {
     Complete::Util::complete_array_elem(
         word  => $word,
         array => [grep {defined}
-                      map {($_->{seq}, $_->{name})} @{$parsed->{participants}}],
+                      map {($_->{seq}, $_->{name}, $_->{_name})}
+                      @{$parsed->{participants}}],
     );
 }
 
@@ -1070,7 +1071,8 @@ sub _complete_dataset {
     Complete::Util::complete_array_elem(
         word  => $word,
         array => [grep {defined}
-                      map {($_->{seq}, $_->{name})} @{$parsed->{datasets}}],
+                      map {($_->{seq}, $_->{name}, $_->{_name})}
+                      @{$parsed->{datasets}}],
     );
 }
 
@@ -1138,7 +1140,7 @@ sub _complete_item {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [map {($_->{seq}, $_->{_name})} @$items],
+        array => [map {($_->{seq}, $_->{name}, $_->{_name})} @$items],
     );
 }
 
