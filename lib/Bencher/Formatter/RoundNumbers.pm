@@ -44,11 +44,11 @@ sub munge_result {
                 $fmt, $rit->{vs_slowest});
         }
 
-        # we don't need to round result_size to n significant digits because
+        # we don't need to round *_size fields to n significant digits because
         # they are not time measurement, but we do want to round it when it has
         # been divided when converting unit to kB, MB, etc.
         for my $col (keys %$rit) {
-            if ($col =~ /^(result_size)$/ && $rit->{$col} != int($rit->{$col})) {
+            if ($col =~ /^(result|proc_\w+|proc)_size$/ && $rit->{$col} != int($rit->{$col})) {
                 $rit->{$col} = sprintf($fmt, $rit->{$col});
             }
         }

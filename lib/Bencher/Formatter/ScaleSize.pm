@@ -21,7 +21,7 @@ sub munge_result {
 
     return unless @{$envres->[2]};
 
-    my @cols = grep {/^(result_size)\b/} keys %{ $envres->[2][0] };
+    my @cols = grep {/^(result|proc_\w+|proc)_size$/} keys %{ $envres->[2][0] };
     return unless @cols;
 
   COL:

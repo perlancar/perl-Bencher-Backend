@@ -14,6 +14,15 @@ use List::Util qw(first);
 
 our %SPEC;
 
+sub _get_tempfile_path {
+    my ($filename) = @_;
+    state $tempdir = do {
+        require File::Temp;
+        File::Temp::tempdir(CLEANUP => $log->is_debug ? 0:1);
+    };
+    "$tempdir/$filename";
+}
+
 sub _fill_template {
     no warnings 'uninitialized';
     my ($template, $vars, $escape_method) = @_;
@@ -30,6 +39,65 @@ sub _fill_template {
         /eg;
 
     $template;
+}
+
+sub _get_process_size {
+    my ($parsed, $it) = @_;
+
+    my $script_path = _get_tempfile_path("get_process_size-$it->{seq}");
+
+    $log->debugf("Creating script to measure get process size at %s ...", $script_path);
+    {
+        open my($fh), ">", $script_path or die "Can't open file $script_path: $!";
+
+        print $fh "# load modules\n";
+        my $participants = $parsed->{participants};
+        my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
+        if ($participant->{module}) {
+            print $fh "require $participant->{module};\n";
+        } elsif ($participant->{modules}) {
+            print $fh "require $_;\n" for @{ $participant->{modules} };
+        }
+        # XXX should we load extra_modules? i think we should
+        print $fh "\n";
+
+        print $fh "# run code\n";
+        print $fh 'my $code = ', dmp($it->{_code}), '; $code->(); ', "\n";
+        print $fh "\n";
+
+        # we don't want to load extra modules like Linux::Smaps etc because they
+        # will increase the process size themselves. instead, we do it very
+        # minimally by reading /proc/PID/smaps directly. this means it will only
+        # work for linux. support for other OS should be added here.
+        print $fh "# get process size\n";
+        print $fh 'print "### OUTPUT-TO-PARSE-BY-BENCHER ###\n";', "\n"; # keep sync with reading code
+        print $fh 'my %stats;', "\n";
+        print $fh 'open my($fh), "<", "/proc/$$/smaps" or die "Cannot open /proc/$$smaps: $!";', "\n";
+        print $fh 'while (<$fh>) { /^(\w+):\s*(\d+)/ or next; $stat{lc $1} += $2 }', "\n";
+        print $fh 'for (sort keys %stat) { print "$_: $stat{$_}\n" }', "\n";
+        print $fh "\n";
+
+        close $fh or die "Can't write to $script_path: $!";
+    }
+
+    # run the script
+    {
+        require Capture::Tiny;
+        my @cmd = ($^X, $script_path);
+        $log->debugf("Running %s ...", \@cmd);
+        my ($stdout, @res) = Capture::Tiny::capture_stdout(sub {
+            system @cmd;
+            die "Failed running script '$script_path' to get process size" if $?;
+        });
+        $stdout =~ /^### OUTPUT-TO-PARSE-BY-BENCHER ###(.+)/ms
+            or die "Can't find marker in output of '$script_path' to get process size";
+        my $info0 = $1;
+        my %info; while ($info0 =~ /^(\w+): (\d+)/gm) { $info{$1} = $2 }
+        $it->{"proc_size"} = $info{size}*1024;
+        for (qw/rss private_dirty/) {
+            $it->{"proc_${_}_size"} = $info{$_}*1024 if defined $info{$_};
+        }
+    }
 }
 
 sub _find_record_by_seq {
@@ -1803,7 +1871,7 @@ _
         },
 
         include_result_size => {
-            summary => "Aside from time, also return each item result's memory usage",
+            summary => "Also return memory usage of each item code's result (return value)",
             schema => 'bool',
             description => <<'_',
 
@@ -1819,6 +1887,23 @@ _
         capture_stderr => {
             summary => 'Trap output to stderr',
             schema => 'bool',
+        },
+
+        include_process_size => {
+            summary => "Also return process size information for each item",
+            schema => 'bool',
+            description => <<'_',
+
+This is done by dumping each item's code into a temporary file and running the
+file with a new perl interpreter process and measuring the process size at the
+end (so it does not need to load Bencher itself or the other items). Currently
+only works on Linux because process size information is retrieved from
+`/proc/PID/smaps`. Not all code can work, e.g. if the code tries to access a
+closure or outside data or extra modules (modules not specified in the
+participant or loaded by the code itself). Usually does not make sense to use
+this on external command participants.
+
+_
         },
 
         return_meta => {
@@ -2226,6 +2311,9 @@ sub bencher {
             );
         }
 
+        my $include_process_size = $args{include_process_size} //
+            $parsed->{include_process_size};
+
         # test code first
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
@@ -2299,16 +2387,18 @@ sub bencher {
                 }
                 $it->{_code_error} = $err;
 
+                if ($include_result_size) {
+                    require Devel::Size;
+                    $it->{_result_size} = Devel::Size::total_size($it->{_result});
+                }
+
+                if ($include_process_size) {
+                    _get_process_size($parsed, $it);
+                }
+
                 push @$fitems, $it;
             }
             $items = $fitems;
-        }
-
-        if ($include_result_size) {
-            require Devel::Size;
-            for my $it (@$items) {
-                $it->{_result_size} = Devel::Size::total_size($it->{_result});
-            }
         }
 
         if ($action eq 'show-items-results') {
@@ -2401,7 +2491,6 @@ sub bencher {
         if ($args{multiperl} || $args{multimodver}) {
             require Data::Clone;
             require Devel::Size;
-            require File::Temp;
             my %perl_exes;
             my %perl_opts;
             for my $it (@$items) {
@@ -2415,12 +2504,10 @@ sub bencher {
             my $sc = Data::Clone::clone($parsed);
             for (keys %$sc) { delete $sc->{$_} if /^(before|after)_/ } # remove all hooks
 
-            my $tempdir = File::Temp::tempdir(CLEANUP => $log->is_debug ? 0:1);
-
             my %item_mems; # key = item seq
             for my $perl (sort keys %perl_exes) {
                 for my $modver (sort keys %perl_opts) {
-                    my $scd_path = "$tempdir/scenario-$perl";
+                    my $scd_path = _get_tempfile_path("scenario-$perl");
                     $sc->{items} = [];
                     for my $it (@$items) {
                         next unless $it->{perl} eq $perl;
@@ -2434,7 +2521,7 @@ sub bencher {
                     open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
                     print $fh dmp($sc), ";\n";
                     close $fh;
-                    my $res_path = "$tempdir/result-$perl";
+                    my $res_path = _get_tempfile_path("benchresult-$perl");
                     my $cmd = join(
                         " ",
                         $perl_exes{$perl},
@@ -2505,7 +2592,7 @@ sub bencher {
                 };
 
                 for my $k (sort keys %$it) {
-                    next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+)$/;
+                    next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+|proc_.+)$/;
                     push @columns, $k unless grep {$k eq $_} @columns;
                     $row->{$k} = $it->{$k};
                 }
@@ -2515,6 +2602,7 @@ sub bencher {
 
         push @columns, qw/seq rate time/;
         push @columns, qw/result_size/ if $include_result_size;
+        # XXX proc_* fields should be put here
         push @columns, qw/errors samples notes/;
 
         $envres->[2] = \@rows;
