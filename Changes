@@ -1,5 +1,24 @@
 Revision history for Bencher-Backend
 
+1.005   2016-04-08 (PERLANCAR)
+
+	[ENHANCEMENTS]
+
+        - Add --include-process-size to show process memory stats.
+
+	- Add output capturing (--show-items-outputs, --capture-stdout,
+	  --capture-stderr).
+
+	[BUG FIXES]
+
+        - Regression: --show-items-results and --show-items-results-sizes
+          returned JSON by default when it should return a formatted text.
+
+	- When trying to come up with a name for a command participant, also
+	  take a look at cmdline_template/perl_cmdline/perl_cmdline_template in
+	  addition to just cmdline.
+
+
 1.004   2016-04-08 (PERLANCAR)
 
 	- Eval code template in 'main' package.
