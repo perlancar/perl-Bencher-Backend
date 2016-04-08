@@ -32,7 +32,7 @@ sub munge_result {
 }
 
 1;
-# ABSTRACT: Delete constant fields to reduce clutter
+# ABSTRACT: Delete constant item permutation fields to reduce clutter
 
 =for Pod::Coverage .*
 
@@ -40,3 +40,6 @@ sub munge_result {
 
 Constant fields are fields that exist in every row and have a single value
 across all rows.
+
+Only item permutation fields that are constant are removed. Result fields are
+not removed even though they are constant.
