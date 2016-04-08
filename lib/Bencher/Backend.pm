@@ -1407,6 +1407,7 @@ _
                            show-items-codes
                            show-items-results
                            show-items-results-sizes
+                           show-items-outputs
                            bench
                        /]
                     # list-functions
@@ -1473,6 +1474,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a show-items-results-sizes',
                     code => sub { $_[0]{action} = 'show-items-results-sizes' },
+                },
+                show_items_outputs => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a show-items-outputs',
+                    code => sub { $_[0]{action} = 'show-items-outputs' },
                 },
             },
             tags => ['category:action'],
@@ -1804,6 +1810,15 @@ _
 Memory size is measured using `Devel::Size`.
 
 _
+        },
+
+        capture_stdout => {
+            summary => 'Trap output to stdout',
+            schema => 'bool',
+        },
+        capture_stderr => {
+            summary => 'Trap output to stderr',
+            schema => 'bool',
         },
 
         return_meta => {
@@ -2143,7 +2158,8 @@ sub bencher {
         goto L_END;
     }
 
-    if ($action =~ /\A(show-items-results-sizes|show-items-results|bench)\z/) {
+    if ($action =~ /\A(show-items-results-sizes|show-items-results|show-items-outputs|bench)\z/) {
+        require Capture::Tiny;
         require Module::Load;
         require Time::HiRes;
 
@@ -2159,6 +2175,10 @@ sub bencher {
                 $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
                     0 : 1
                   );
+        my $capture_stdout = $args{capture_stdout} // $parsed->{capture_stdout} // 0;
+        $capture_stdout = 1 if $action eq 'show-items-outputs';
+        my $capture_stderr = $args{capture_stderr} // $parsed->{capture_stderr} // 0;
+        $capture_stderr = 1 if $action eq 'show-items-outputs';
 
         $envres->[3]{'func.module_startup'} = $module_startup;
         $envres->[3]{'func.module_versions'}{perl} = "$^V" if $return_meta;
@@ -2223,8 +2243,23 @@ sub bencher {
                 eval {
                     my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
                     my $result_is_list = $participant->{result_is_list} // 0;
-                    $it->{_result} = $result_is_list ?
-                        [$it->{_code}->()] : $it->{_code}->();
+                    if ($capture_stdout && $capture_stderr) {
+                        my ($stdout, $stderr, @res) = Capture::Tiny::capture($it->{_code});
+                        $it->{_stdout} = $stdout;
+                        $it->{_stderr} = $stderr;
+                        $it->{_result} = $result_is_list ? \@res : $res[0];
+                    } elsif ($capture_stdout) {
+                        my ($stdout, @res) = Capture::Tiny::capture_stdout($it->{_code});
+                        $it->{_stdout} = $stdout;
+                        $it->{_result} = $result_is_list ? \@res : $res[0];
+                    } elsif ($capture_stderr) {
+                        my ($stderr, @res) = Capture::Tiny::capture_stderr($it->{_code});
+                        $it->{_stderr} = $stderr;
+                        $it->{_result} = $result_is_list ? \@res : $res[0];
+                    } else {
+                        $it->{_result} = $result_is_list ?
+                            [$it->{_code}->()] : $it->{_code}->();
+                    }
                 };
                 my $err = $@;
 
@@ -2313,6 +2348,27 @@ sub bencher {
             goto RETURN_RESULT;
         }
 
+        if ($action eq 'show-items-outputs') {
+            die "show-items-outputs currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+            if ($is_cli_and_text_format) {
+                $envres->[3]{'cmdline.skip_format'} = 1;
+                $envres->[2] = join(
+                    "",
+                    map {(
+                        "#$_->{seq} ($_->{_name}) stdout (", length($_->{_stdout} // ''), " bytes):\n",
+                        ($_->{_stdout} // ''),
+                        "\n\n",
+                        "#$_->{seq} ($_->{_name}) stderr (", length($_->{_stderr} // ''), " bytes):\n",
+                        ($_->{_stderr} // ''),
+                        "\n\n",
+                    )} @$items
+                );
+            } else {
+                $envres->[2] = [map {$_->{_result_size}} @$items];
+            }
+            goto RETURN_RESULT;
+        }
+
         my $time_start = Time::HiRes::time();
         if ($return_meta) {
             $envres->[3]{'func.bencher_version'} = $Bencher::VERSION;
@@ -2385,7 +2441,7 @@ sub bencher {
                         "-MBencher::Backend",
                         "-MData::Dmp",
                         @{ $perl_opts{$modver} // [] },
-                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], include_result_size=>q[$include_result_size], return_meta=>0))' > '$res_path'",
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], include_result_size=>q[$include_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);
                     system $cmd;
@@ -2407,13 +2463,26 @@ sub bencher {
                 } # for modver
             } # for perl
         } else {
-            my $tres = Benchmark::Dumb::_timethese_guts(
-                $precision,
-                {
-                    map { $_->{seq} => $_->{_code} } @$items
-                },
-                "silent",
-            );
+            my $tres;
+            my $doit = sub {
+                $tres = Benchmark::Dumb::_timethese_guts(
+                    $precision,
+                    {
+                        map { $_->{seq} => $_->{_code} } @$items
+                    },
+                    "silent",
+                );
+            };
+
+            if ($capture_stdout && $capture_stderr) {
+                my ($stdout, $stderr, @res) = Capture::Tiny::capture($doit);
+            } elsif ($capture_stdout) {
+                my ($stdout, @res) = Capture::Tiny::capture_stdout($doit);
+            } elsif ($capture_stderr) {
+                my ($stdout, @res) = Capture::Tiny::capture_stderr($doit);
+            } else {
+                $doit->();
+            }
 
             if ($return_meta) {
                 $envres->[3]{'func.time_end'} = Time::HiRes::time();
