@@ -1,5 +1,12 @@
 Revision history for Bencher-Backend
 
+1.004   2016-04-08 (PERLANCAR)
+
+	- Eval code template in 'main' package.
+
+        - Allow <VARNAME:raw> in template to avoid escaping.
+
+
 1.003   2016-04-03 (PERLANCAR)
 
 	- [Bugfix] completer for participant/dataset name didn't include
