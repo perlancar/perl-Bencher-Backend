@@ -85,7 +85,7 @@ sub _get_process_size {
         require Capture::Tiny;
         my @cmd = ($^X, $script_path);
         $log->debugf("Running %s ...", \@cmd);
-        my ($stdout, @res) = Capture::Tiny::capture_stdout(sub {
+        my ($stdout, @res) = &Capture::Tiny::capture_stdout(sub {
             system @cmd;
             die "Failed running script '$script_path' to get process size" if $?;
         });
@@ -1243,7 +1243,7 @@ sub _list_perls {
             "-e'print \$Bencher::Backend::VERSION'",
         );
         my ($stdout, $stderr, @res) =
-            Capture::Tiny::capture(sub { system @cmd });
+            &Capture::Tiny::capture(sub { system @cmd });
         if ($stderr || $?) {
             $perl->{has_bencher} = 0;
             $perl->{bencher_version} = undef;
@@ -2332,16 +2332,16 @@ sub bencher {
                     my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
                     my $result_is_list = $participant->{result_is_list} // 0;
                     if ($capture_stdout && $capture_stderr) {
-                        my ($stdout, $stderr, @res) = Capture::Tiny::capture($it->{_code});
+                        my ($stdout, $stderr, @res) = &Capture::Tiny::capture($it->{_code});
                         $it->{_stdout} = $stdout;
                         $it->{_stderr} = $stderr;
                         $it->{_result} = $result_is_list ? \@res : $res[0];
                     } elsif ($capture_stdout) {
-                        my ($stdout, @res) = Capture::Tiny::capture_stdout($it->{_code});
+                        my ($stdout, @res) = &Capture::Tiny::capture_stdout($it->{_code});
                         $it->{_stdout} = $stdout;
                         $it->{_result} = $result_is_list ? \@res : $res[0];
                     } elsif ($capture_stderr) {
-                        my ($stderr, @res) = Capture::Tiny::capture_stderr($it->{_code});
+                        my ($stderr, @res) = &Capture::Tiny::capture_stderr($it->{_code});
                         $it->{_stderr} = $stderr;
                         $it->{_result} = $result_is_list ? \@res : $res[0];
                     } else {
@@ -2562,11 +2562,11 @@ sub bencher {
             };
 
             if ($capture_stdout && $capture_stderr) {
-                my ($stdout, $stderr, @res) = Capture::Tiny::capture($doit);
+                my ($stdout, $stderr, @res) = &Capture::Tiny::capture($doit);
             } elsif ($capture_stdout) {
-                my ($stdout, @res) = Capture::Tiny::capture_stdout($doit);
+                my ($stdout, @res) = &Capture::Tiny::capture_stdout($doit);
             } elsif ($capture_stderr) {
-                my ($stdout, @res) = Capture::Tiny::capture_stderr($doit);
+                my ($stdout, @res) = &Capture::Tiny::capture_stderr($doit);
             } else {
                 $doit->();
             }
