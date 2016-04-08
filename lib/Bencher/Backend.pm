@@ -1885,6 +1885,12 @@ sub bencher {
     my $action = $args{action};
     my $envres;
 
+    my $is_cli_and_text_format;
+    {
+        my $r = $args{-cmdline_r};
+        $is_cli_and_text_format = 1 if $r && ($r->{format} // 'text') =~ /text/;
+    }
+
     if ($action eq 'list-perls') {
         my @perls = _list_perls();
         my @res;
@@ -2272,36 +2278,27 @@ sub bencher {
 
         if ($action eq 'show-items-results') {
             die "show-items-results currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
-            if ($return_meta) {
-                $envres->[2] = [map {$_->{_result}} @$items];
-            } elsif ($args{raw}) {
+            if ($is_cli_and_text_format) {
+                require Data::Dump;
+                $envres->[3]{'cmdline.skip_format'} = 1;
                 $envres->[2] = join(
                     "",
                     map {(
                         "#$_->{seq} ($_->{_name}):\n",
-                        $_->{_result},
+                        $args{raw} ? $_->{_result} : Data::Dump::dump($_->{_result}),
                         "\n\n",
                     )} @$items
                 );
             } else {
-                require Data::Dump;
-                $envres->[2] = join(
-                    "",
-                    map {(
-                        "#$_->{seq} ($_->{_name}):\n",
-                        Data::Dump::dump($_->{_result}),
-                        "\n\n",
-                    )} @$items
-                );
+                $envres->[2] = [map {$_->{_result}} @$items];
             }
             goto RETURN_RESULT;
         }
 
         if ($action eq 'show-items-results-sizes') {
             die "show-items-results currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
-            if ($return_meta) {
-                $envres->[2] = [map {$_->{_result_size}} @$items];
-            } else {
+            if ($is_cli_and_text_format) {
+                $envres->[3]{'cmdline.skip_format'} = 1;
                 $envres->[2] = join(
                     "",
                     map {(
@@ -2310,6 +2307,8 @@ sub bencher {
                         "\n\n",
                     )} @$items
                 );
+            } else {
+                $envres->[2] = [map {$_->{_result_size}} @$items];
             }
             goto RETURN_RESULT;
         }
@@ -2501,8 +2500,7 @@ sub bencher {
 
       FORMAT:
         {
-            my $r = $args{-cmdline_r};
-            last unless $r && ($r->{format} // 'text') =~ /text/;
+            last unless $is_cli_and_text_format;
 
             $envres = [
                 200, "OK",
