@@ -255,10 +255,12 @@ sub _parse_scenario {
             # necessarily unique)
             unless (defined($p->{name})) {
                 if ($p->{type} eq 'command') {
-                    if (ref($p->{cmdline}) eq 'ARRAY') {
-                        $p->{_name} = substr($p->{cmdline}[0], 0, 20);
+                    my $c = $p->{cmdline} // $p->{cmdline_template} //
+                        $p->{perl_cmdline} // $p->{perl_cmdline_template};
+                    if (ref($c) eq 'ARRAY') {
+                        $p->{_name} = substr($c->[0], 0, 20);
                     } else {
-                        $p->{cmdline} =~ /(\S+)/;
+                        $c =~ /(\S+)/;
                         $p->{_name} = substr($1, 0, 20);
                     }
                 } elsif ($p->{type} eq 'perl_code') {
