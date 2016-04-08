@@ -14,6 +14,24 @@ use List::Util qw(first);
 
 our %SPEC;
 
+sub _fill_template {
+    no warnings 'uninitialized';
+    my ($template, $vars, $escape_method) = @_;
+
+    if ($escape_method eq 'shell') {
+        require String::ShellQuote;
+    }
+
+    $template =~ s/\<(\w+)(:raw)?\>/
+        $2 eq ':raw' ? $vars->{$1} :
+        $escape_method eq 'shell' ? String::ShellQuote::shell_quote($vars->{$1}) :
+        $escape_method eq 'dmp' ? dmp($vars->{$1}) :
+        $vars->{$1}
+        /eg;
+
+    $template;
+}
+
 sub _find_record_by_seq {
     my ($recs, $seq) = @_;
 
@@ -730,15 +748,12 @@ sub _gen_items {
                                                0..$#{ $ds->{argv} } };
                     }
                     if (ref($p->{cmdline_template}) eq 'ARRAY') {
-                        @cmd = map {
-                            my $el = $_;
-                            $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
-                            $el;
-                        } @{ $p->{cmdline_template} };
+                        @cmd = map { _fill_template($_, $template_vars) }
+                            @{ $p->{cmdline_template} };
                         $shell = 0;
                     } else {
-                        my $cmd = $p->{cmdline_template};
-                        $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
+                        my $cmd = _fill_template(
+                            $p->{cmdline_template}, $template_vars, 'shell');
                         @cmd = ($cmd);
                         $shell = 1;
                     }
@@ -754,21 +769,21 @@ sub _gen_items {
                         @cmd = (
                             $perl_exes{$h->{perl}},
                             ($h->{modver} ? @{$perl_opts{$h->{modver}} // []} : ()),
-                            map {
-                                my $el = $_;
-                                $el =~ s/\<(\w+(?::\w+)?)\>/$template_vars->{$1}/g;
-                                $el;
-                            } @{ $p->{perl_cmdline_template} }
+                            map { _fill_template($_, $template_vars) }
+                                @{ $p->{perl_cmdline_template} }
                         );
                         $shell = 0;
                     } else {
-                        my $cmd = join(
-                            " ",
-                            $perl_exes{$h->{perl}},
-                            ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}} // []} : ()),
-                            $p->{perl_cmdline_template},
+                        my $cmd = _fill_template(
+                            join(
+                                " ",
+                                $perl_exes{$h->{perl}},
+                                ($h->{modver} ? map {String::ShellQuote::shell_quote($_)} @{$perl_opts{$h->{modver}} // []} : ()),
+                                $p->{perl_cmdline_template},
+                            ),
+                            $template_vars,
+                            'shell',
                         );
-                        $cmd =~ s/\<(\w+(?::\w+)?)\>/String::ShellQuote::shell_quote($template_vars->{$1})/eg;
                         @cmd = ($cmd);
                         $shell = 1;
                     }
@@ -779,7 +794,7 @@ sub _gen_items {
                 $log->debugf("Item #%d: cmdline=%s", $item_seq, \@cmd);
 
                 {
-                    my $code_str = "sub { ";
+                    my $code_str = "package main; sub { ";
                     if ($shell) {
                         $code_str .= "system ".dmp($cmd[0])."; ";
                     } else {
@@ -814,10 +829,8 @@ sub _gen_items {
                         #warn "Item #$item_seq: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                     }
 
-                    if ($template_vars) {
-                        $template =~ s/\<(\w+(?::\w+)?)\>/dmp($template_vars->{$1})/eg;
-                    }
-                    my $code_str = "sub { $template }";
+                    my $code_str = "package main; sub { ".
+                        _fill_template($template, $template_vars, 'dmp') . " }";
                     $log->debugf("Item #%d: code=%s", $item_seq, $code_str);
                     $code = eval $code_str;
                     return [400, "Item #$item_seq: code compile error: $@ (code: $code_str)"] if $@;
