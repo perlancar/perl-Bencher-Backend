@@ -1,5 +1,18 @@
 Revision history for Bencher-Backend
 
+1.006   2016-04-13 (PERLANCAR)
+
+        - Add --{in,ex}clude-{participant,dataset,item}-{name,seq} to
+          unambiguously include/exclude by name or sequence.
+
+        - [ux] Warn when there is a participant/dataset/item which has name that
+          is also a sequence number, which can be confusing when
+          including/excluding.
+
+        - [Bugfix] Defeat the annoying compile errors when using Capture::Tiny
+          due to mismatching prototypes.
+
+
 1.005   2016-04-08 (PERLANCAR)
 
 	[ENHANCEMENTS]
