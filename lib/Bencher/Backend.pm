@@ -116,6 +116,10 @@ sub _filter_records {
     my $entity = $args{entity};
     my $include = $args{include};
     my $exclude = $args{exclude};
+    my $include_name = $args{include_name};
+    my $exclude_name = $args{exclude_name};
+    my $include_seq = $args{include_seq};
+    my $exclude_seq = $args{exclude_seq};
     my $include_pattern = $args{include_pattern};
     my $exclude_pattern = $args{exclude_pattern};
     my $include_tags = $args{include_tags};
@@ -124,13 +128,30 @@ sub _filter_records {
 
     my $frecs = [];
 
-    # check that what's mentioned in include and exclude are actually in the
-    # records
+    # check that there is a name that is also a sequence number which could be
+    # confusing
     {
-        my @incexc;
-        push @incexc, @$include if $include;
-        push @incexc, @$exclude if $exclude;
-        for my $incexc (@incexc) {
+        last unless $include || $exclude ||
+            $include_pattern || $exclude_pattern;
+        my @seq_names;
+        for my $rec (@$recs) {
+            my $name = $rec->{name} // $rec->{_name};
+            next unless $name =~ /\A\d+\z/ && $name < @$recs;
+            push @seq_names, $name;
+        }
+        if (@seq_names) {
+            warn "There is at least one $entity which has names that are also ".
+                "sequence numbers and this can be confusing when ".
+                "including/excluding: " . join(", ", @seq_names) .
+                ". Either rename the $entity or use ".
+                "--{include,exclude}-$entity-{name,seq}.\n";
+        }
+    }
+
+    # check that what's mentioned in {in,ex}clude{,_name,_seq} are actually in
+    # the records
+    {
+        for my $incexc (@{$include // []}) {
             my $found;
             for my $rec (@$recs) {
                 if ($incexc =~ /\A\d+\z/ && $rec->{seq} == $incexc) {
@@ -141,7 +162,7 @@ sub _filter_records {
                     last;
                 }
             }
-            die "Unknown $entity '$incexc' specified in include/exclude, try ".
+            die "Unknown $entity '$incexc' specified in include, try ".
                 "one of: " .
                     join(", ",
                          grep { length($_) }
@@ -149,6 +170,80 @@ sub _filter_records {
                                     $_->{name} // $_->{_name} // '') }
                                  @$recs)
                 unless $found;
+        }
+        for my $incexc (@{$exclude // []}) {
+            my $found;
+            for my $rec (@$recs) {
+                if ($incexc =~ /\A\d+\z/ && $rec->{seq} == $incexc) {
+                    $found++;
+                    last;
+                } elsif (($rec->{name} // $rec->{_name} // '') eq $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity '$incexc' specified in exclude, try ".
+                "one of: " .
+                    join(", ",
+                         grep { length($_) }
+                             map { ($_->{seq},
+                                    $_->{name} // $_->{_name} // '') }
+                                 @$recs)
+                unless $found;
+        }
+        for my $incexc (@{$include_name // []}) {
+            my $found;
+            for my $rec (@$recs) {
+                if (($rec->{name} // $rec->{_name} // '') eq $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity name '$incexc' specified in include_name, try ".
+                "one of: " .
+                    join(", ",
+                         grep { length($_) }
+                             map { $_->{name} // $_->{_name} // '' }
+                                 @$recs)
+                unless $found;
+        }
+        for my $incexc (@{$exclude_name // []}) {
+            my $found;
+            for my $rec (@$recs) {
+                if (($rec->{name} // $rec->{_name} // '') eq $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity name '$incexc' specified in exclude_name, try ".
+                "one of: " .
+                    join(", ",
+                         grep { length($_) }
+                             map { $_->{name} // $_->{_name} // '' }
+                                 @$recs)
+                unless $found;
+        }
+        for my $incexc (@{$include_seq // []}) {
+            my $found;
+            for my $rec (@$recs) {
+                if ($rec->{seq} == $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity sequence '$incexc' specified in include_seq, try ".
+                "one of: " . join(", ", map { $_->{seq} } @$recs) unless $found;
+        }
+        for my $incexc (@{$exclude_seq // []}) {
+            my $found;
+            for my $rec (@$recs) {
+                if ($rec->{seq} == $incexc) {
+                    $found++;
+                    last;
+                }
+            }
+            die "Unknown $entity sequence '$incexc' specified in exclude_seq, try ".
+                "one of: " . join(", ", map { $_->{seq} } @$recs) unless $found;
         }
     }
 
@@ -174,6 +269,30 @@ sub _filter_records {
             next REC unless $included;
             $explicitly_included++;
         }
+        if ($include_name && @$include_name) {
+            my $included;
+          INC:
+            for my $inc (@$include_name) {
+                if (($rec->{name} // $rec->{_name} // '') eq $inc) {
+                    $included++;
+                    last INC;
+                }
+            }
+            next REC unless $included;
+            $explicitly_included++;
+        }
+        if ($include_seq && @$include_seq) {
+            my $included;
+          INC:
+            for my $inc (@$include_seq) {
+                if ($rec->{seq} == $inc) {
+                    $included++;
+                    last INC;
+                }
+            }
+            next REC unless $included;
+            $explicitly_included++;
+        }
         if ($exclude && @$exclude) {
             for my $exc (@$exclude) {
                 if ($exc =~ /\A\d+\z/) {
@@ -181,6 +300,16 @@ sub _filter_records {
                 } else {
                     next REC if (($rec->{name} // $rec->{_name} // '') eq $exc);
                 }
+            }
+        }
+        if ($exclude_name && @$exclude_name) {
+            for my $exc (@$exclude_name) {
+                next REC if (($rec->{name} // $rec->{_name} // '') eq $exc);
+            }
+        }
+        if ($exclude_seq && @$exclude_seq) {
+            for my $exc (@$exclude_seq) {
+                next REC if $rec->{seq} == $exc;
             }
         }
         if ($include_pattern) {
@@ -401,6 +530,10 @@ sub _parse_scenario {
             records => $parsed->{participants},
             include => $pargs->{include_participants},
             exclude => $pargs->{exclude_participants},
+            include_name => $pargs->{include_participant_names},
+            exclude_name => $pargs->{exclude_participant_names},
+            include_seq => $pargs->{include_participant_seqs},
+            exclude_seq => $pargs->{exclude_participant_seqs},
             include_pattern => $pargs->{include_participant_pattern},
             exclude_pattern => $pargs->{exclude_participant_pattern},
             include_tags => $pargs->{include_participant_tags},
@@ -454,6 +587,10 @@ sub _parse_scenario {
             records => $parsed->{datasets},
             include => $pargs->{include_datasets},
             exclude => $pargs->{exclude_datasets},
+            include_name => $pargs->{include_dataset_names},
+            exclude_name => $pargs->{exclude_dataset_names},
+            include_seq => $pargs->{include_dataset_seqs},
+            exclude_seq => $pargs->{exclude_dataset_seqs},
             include_pattern => $pargs->{include_dataset_pattern},
             exclude_pattern => $pargs->{exclude_dataset_pattern},
             include_tags => $pargs->{include_dataset_tags},
@@ -980,6 +1117,10 @@ sub _gen_items {
         records => $items,
         include => $pargs->{include_items},
         exclude => $pargs->{exclude_items},
+        include_name => $pargs->{include_item_names},
+        exclude_name => $pargs->{exclude_item_names},
+        include_seq => $pargs->{include_item_seqs},
+        exclude_seq => $pargs->{exclude_item_seqs},
         include_pattern => $pargs->{include_item_pattern},
         exclude_pattern => $pargs->{exclude_item_pattern},
     ) if $apply_filters;
@@ -1628,9 +1769,26 @@ _
         include_participants => {
             'x.name.is_plural' => 1,
             summary => 'Only include participants whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add participant to include list',
+            'summary.alt.plurality.singular' => 'Add participant (by name/seq) to include list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        include_participant_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include participants whose name matches this',
+            'summary.alt.plurality.singular' => 'Add participant (by name) to include list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_participant(@_, apply_filters=>0, seq=>0) },
+            tags => ['category:filtering'],
+        },
+        include_participant_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'include_participant_seq',
+            summary => 'Only include participants whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add participant (by sequence number) to include list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_participant(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         include_participant_pattern => {
@@ -1654,9 +1812,26 @@ _
         exclude_participants => {
             'x.name.is_plural' => 1,
             summary => 'Exclude participants whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add participant to include list',
+            'summary.alt.plurality.singular' => 'Add participant (by name/seq) to exclude list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_participant_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude participants whose name matches this',
+            'summary.alt.plurality.singular' => 'Add participant (by name) to exclude list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_participant(@_, apply_filters=>0, seq=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_participant_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'exclude_participant_seq',
+            summary => 'Exclude participants whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add participant (by sequence number) to exclude list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_participant(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         exclude_participant_pattern => {
@@ -1681,9 +1856,26 @@ _
         include_items => {
             'x.name.is_plural' => 1,
             summary => 'Only include items whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add item to include list',
+            'summary.alt.plurality.singular' => 'Add item (by name/seq) to include list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        include_item_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include items whose name matches this',
+            'summary.alt.plurality.singular' => 'Add item (by name) to include list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_item(@_, apply_filters=>0, seq=>0) },
+            tags => ['category:filtering'],
+        },
+        include_item_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'include_item_seq',
+            summary => 'Only include items whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add item (by sequence number) to include list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_item(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         include_item_pattern => {
@@ -1694,9 +1886,26 @@ _
         exclude_items => {
             'x.name.is_plural' => 1,
             summary => 'Exclude items whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add item to exclude list',
+            'summary.alt.plurality.singular' => 'Add item (by name/seq) to exclude list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_item_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude items whose name matches this',
+            'summary.alt.plurality.singular' => 'Add item (by name) to exclude list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_item(@_, apply_filters=>0, seq=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_item_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'exclude_item_seq',
+            summary => 'Exclude items whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add item (by sequence number) to exclude list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_item(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         exclude_item_pattern => {
@@ -1708,9 +1917,26 @@ _
         include_datasets => {
             'x.name.is_plural' => 1,
             summary => 'Only include datasets whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add dataset to include list',
+            'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to include list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        include_dataset_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Only include datasets whose name matches this',
+            'summary.alt.plurality.singular' => 'Add dataset (by name) to include list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        include_dataset_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'include_dataset_seq',
+            summary => 'Only include datasets whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to include list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         include_dataset_pattern => {
@@ -1721,9 +1947,26 @@ _
         exclude_datasets => {
             'x.name.is_plural' => 1,
             summary => 'Exclude datasets whose seq/name matches this',
-            'summary.alt.plurality.singular' => 'Add dataset to exclude list',
+            'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to exclude list',
             schema => ['array*', of=>['str*']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_dataset_names => {
+            'x.name.is_plural' => 1,
+            summary => 'Exclude datasets whose name matches this',
+            'summary.alt.plurality.singular' => 'Add dataset (by name) to exclude list',
+            schema => ['array*', of=>['str*']],
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            tags => ['category:filtering'],
+        },
+        exclude_dataset_seqs => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'exclude_dataset_seq',
+            summary => 'Exclude datasets whose sequence number matches this',
+            'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to exclude list',
+            schema => ['array*', of=>['int*', min=>0]],
+            element_completion => sub { _complete_dataset(@_, apply_filters=>0, name=>0) },
             tags => ['category:filtering'],
         },
         exclude_dataset_pattern => {
