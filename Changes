@@ -1,5 +1,12 @@
 Revision history for Bencher-Backend
 
+1.007   2016-04-19 (PERLANCAR)
+
+	- [Bugfix] save_result was turned *on* all the time, it should be
+	  only when --save-result or (--result-dir or BENCHER_RESULT_DIR
+	  was set).
+
+
 1.006   2016-04-13 (PERLANCAR)
 
         - Add --{in,ex}clude-{participant,dataset,item}-{name,seq} to
