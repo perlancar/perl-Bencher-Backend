@@ -1107,7 +1107,7 @@ sub _gen_items {
         }
 
         for my $it (@$items) {
-            $it->{_name} = join(" ", map {"$_=$it->{$_}"}
+            $it->{_name} = join(" ", map {"$_=".($it->{$_} // "(undef)")}
                                     @name_keys);
         }
     }
