@@ -1,4 +1,4 @@
-package Sah::Schema::Bencher::Scenario;
+package Sah::Schema::bencher::scenario;
 
 # DATE
 # VERSION
@@ -6,9 +6,7 @@ package Sah::Schema::Bencher::Scenario;
 use strict;
 use warnings;
 
-our %SCHEMAS;
-
-my %dh_props = (
+our %dh_props = (
     v => {},
     defhash_v => {},
     name => {},
@@ -20,7 +18,7 @@ my %dh_props = (
     x => {},
 );
 
-$SCHEMAS{bencher_scenario} = [hash => {
+our $schema = [hash => {
     # tmp
     _prop => {
         %dh_props,
@@ -50,21 +48,7 @@ $SCHEMAS{bencher_scenario} = [hash => {
         module_startup => {},
         extra_modules => {},
     },
-}];
+}, {}];
 
 1;
-# ABSTRACT: Sah schemas to validate Bencher specifications
-
-=head1 SYNOPSIS
-
- # schemas are put in the %SCHEMAS package variable
-
-
-=head1 DESCRIPTION
-
-This module contains L<Sah> schemas to validate L<Bencher>.
-
-
-=head1 append:SEE ALSO
-
-L<Bencher>
+# ABSTRACT: Bencher scenario
