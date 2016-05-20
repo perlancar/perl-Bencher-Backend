@@ -1,5 +1,13 @@
 Revision history for Bencher-Backend
 
+1.008   2016-05-20 (PERLANCAR)
+
+	- Follow Sah::Schemas specification, rename
+	  Sah::Schema::Bencher::Scenario to Sah::Schema::bencher::scenario.
+
+	- Avoid perl undef warning.
+
+
 1.007   2016-04-19 (PERLANCAR)
 
 	- [Bugfix] save_result was turned *on* all the time, it should be
