@@ -28,7 +28,7 @@ sub munge_result {
     $self->add_field(
         $envres,
         'vs_slowest',
-        {after=>'time'},
+        {after=>'time', align=>'number'},
         sub {
             for my $rit (@{$envres->[2]}) {
                 $rit->{vs_slowest} = $slowest_time / $rit->{time};

@@ -2738,7 +2738,8 @@ sub bencher {
 
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
 
-        my @columns = (qw/seq participant dataset/);
+        my @columns       = (qw/seq participant dataset/);
+        my @column_aligns = ('right', 'left', 'left');
         my @rows;
         if ($args{multiperl} || $args{multimodver}) {
             require Data::Clone;
@@ -2792,10 +2793,17 @@ sub bencher {
 
                     for my $row (@{ $res->[2] }) {
                         $row->{perl} = $perl;
-                        push @columns, "perl" unless grep {$_ eq 'perl'} @columns;
+                        unless (grep {$_ eq 'perl'} @columns) {
+                            push @columns,        "perl";
+                            push @column_aligns, 'left';
+                        }
                         if (length $modver) {
                             $row->{modver} = $modver;
-                            push @columns, "modver" unless grep {$_ eq 'modver'} @columns;
+                            unless (grep {$_ eq 'modver'} @columns) {
+                                push @columns,       "modver";
+                                push @column_aligns, "left";
+                            }
+
                         }
                         push @rows, $row;
                     }
@@ -2845,20 +2853,30 @@ sub bencher {
 
                 for my $k (sort keys %$it) {
                     next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+|proc_.+)$/;
-                    push @columns, $k unless grep {$k eq $_} @columns;
+                    unless (grep {$k eq $_} @columns) {
+                        push @columns,       $k;
+                        push @column_aligns, 'number';
+                    }
                     $row->{$k} = $it->{$k};
                 }
                 push @rows, $row;
             }
         }
 
-        push @columns, qw/seq rate time/;
-        push @columns, qw/result_size/ if $include_result_size;
+        push @columns,       qw/seq rate time/;
+        push @column_aligns, qw/number number number/;
+
+        if ($include_result_size) {
+            push @columns,       qw/result_size/;
+            push @column_aligns, 'number';
+        }
         # XXX proc_* fields should be put here
-        push @columns, qw/errors samples notes/;
+        push @columns      , qw/errors samples notes/;
+        push @column_aligns, 'number', 'number', 'left';
 
         $envres->[2] = \@rows;
-        $envres->[3]{'table.fields'} = \@columns;
+        $envres->[3]{'table.fields'}       = \@columns;
+        $envres->[3]{'table.field_aligns'} = \@column_aligns;
 
         if ($parsed->{after_bench}) {
             $log->infof("Executing after_bench hook ...");
