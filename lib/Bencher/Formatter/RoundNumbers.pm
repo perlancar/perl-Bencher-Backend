@@ -10,6 +10,7 @@ use warnings;
 
 use parent qw(Bencher::Formatter);
 
+use Math::ScientificNotation::Util qw(sci2dec);
 use Scalar::Util qw(looks_like_number);
 
 use Role::Tiny::With;
@@ -20,28 +21,35 @@ sub munge_result {
 
     my $ff = $envres->[3]{'table.fields'};
 
+    my $code_fmt = sub {
+        my ($num_significant_digits, $num, $scientific_notation) = @_;
+        $scientific_notation //= $self->{scientific_notation};
+        $num = sprintf("%.${num_significant_digits}g", $num);
+        $num = sci2dec($num) unless $scientific_notation;
+        $num;
+    };
+
     for my $rit (@{$envres->[2]}) {
         # 'time' has been scaled by ScaleTime, while 'rate' hasn't. so we use
         # 1/'rate' here
         my $num_significant_digits =
             $rit->{errors} == 0 ? 6 :
             sprintf("%d", log( abs(1/$rit->{rate}) / $rit->{errors})/log(10));
-        my $fmt = "%.${num_significant_digits}g";
-        $rit->{time} = sprintf($fmt, $rit->{time});
+        $rit->{time} = $code_fmt->($num_significant_digits, $rit->{time});
         if (exists $rit->{rate}) {
-            $rit->{rate} = sprintf($fmt, $rit->{rate});
+            $rit->{rate} = $code_fmt->($num_significant_digits, $rit->{rate});
         }
-        $rit->{errors} = sprintf("%.2g", $rit->{errors});
+        $rit->{errors} = $code_fmt->(2, $rit->{errors}, 1);
 
         # XXX this formatter shouldn't be aware directly of mod_overhead_time
         if (exists $rit->{mod_overhead_time}) {
-            $rit->{mod_overhead_time} = sprintf(
-                $fmt, $rit->{mod_overhead_time});
+            $rit->{mod_overhead_time} = $code_fmt->(
+                $num_significant_digits, $rit->{mod_overhead_time});
         }
         # XXX this formatter shouldn't be aware directly of vs_slowest
         if (exists $rit->{vs_slowest}) {
-            $rit->{vs_slowest} = sprintf(
-                $fmt, $rit->{vs_slowest});
+            $rit->{vs_slowest} = $code_fmt->(
+                $num_significant_digits, $rit->{vs_slowest});
         }
 
         # we don't need to round *_size fields to n significant digits because
@@ -49,7 +57,8 @@ sub munge_result {
         # been divided when converting unit to kB, MB, etc.
         for my $col (keys %$rit) {
             if ($col =~ /^(result|proc_\w+|proc)_size$/ && $rit->{$col} != int($rit->{$col})) {
-                $rit->{$col} = sprintf($fmt, $rit->{$col});
+                $rit->{$col} = $code_fmt->(
+                    $num_significant_digits, $rit->{$col});
             }
         }
     }

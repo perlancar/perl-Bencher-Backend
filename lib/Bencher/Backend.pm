@@ -1456,6 +1456,10 @@ $SPEC{format_result} = {
             req => 1,
             pos => 1,
         },
+        options => {
+            schema => 'hash*',
+            pos => 2,
+        },
     },
     args_as => 'array',
 };
@@ -1472,7 +1476,7 @@ sub format_result {
         'ScaleTime',
         'ScaleRate',
         'ScaleSize',
-        'RoundNumbers',
+        ['RoundNumbers', {scientific_notation => $opts->{scientific_notation}}],
         ($envres->[3]{'func.module_startup'} ? ('ModuleStartup') : ()),
         'DeleteConstantFields',
         'DeleteNotesFieldIfEmpty',
@@ -2111,6 +2115,11 @@ _
         sort => {
             schema => ['array*', of=>['str*'], min_len=>1],
             default => ['-time'],
+            tags => ['category:format'],
+        },
+        scientific_notation => {
+            schema => ['bool', is=>1],
+            tags => ['category:format'],
         },
 
         include_result_size => {
@@ -2904,7 +2913,10 @@ sub bencher {
 
             $envres = [
                 200, "OK",
-                format_result($envres, undef, {sort=>$args{sort}}),
+                format_result($envres, undef, {
+                    sort => $args{sort},
+                    scientific_notation => $args{scientific_notation},
+                }),
                 {
                     "cmdline.skip_format" => 1,
                 },
