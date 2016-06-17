@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.010   2016-06-17 (PERLANCAR)
+
+	- [Bugfix] DeleteConstantFields formatter didn't use
+	  delete_fields() yet.
+
+
 1.009   2016-06-17 (PERLANCAR)
 
 	- [ux] Add column alignment to result.
