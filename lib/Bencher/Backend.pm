@@ -2855,7 +2855,7 @@ sub bencher {
                     next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+|proc_.+)$/;
                     unless (grep {$k eq $_} @columns) {
                         push @columns,       $k;
-                        push @column_aligns, 'number';
+                        push @column_aligns, 'left';
                     }
                     $row->{$k} = $it->{$k};
                 }

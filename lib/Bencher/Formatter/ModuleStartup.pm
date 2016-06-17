@@ -26,7 +26,7 @@ sub munge_result {
     $self->add_field(
         $envres,
         'mod_overhead_time',
-        {after=>'time', unit_of=>'time'},
+        {after=>'time', unit_of=>'time', align=>'number'},
         sub {
             for my $rit (@{$envres->[2]}) {
                 my $rit_baseline = first {
@@ -43,6 +43,7 @@ sub munge_result {
 
     $self->delete_fields(
         $envres,
+        'dataset',
         'rate',
     );
 }
