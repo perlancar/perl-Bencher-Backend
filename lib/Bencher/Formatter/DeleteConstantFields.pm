@@ -11,6 +11,7 @@ use warnings;
 use parent qw(Bencher::Formatter);
 
 use Role::Tiny::With;
+with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
 
 sub munge_result {
@@ -24,9 +25,7 @@ sub munge_result {
         my @const_cols = $td->const_col_names;
         for my $k (@const_cols) {
             next unless $k =~ /^(item_.+|arg_.+|perl|modver|participant|dataset)$/;
-            for my $row (@{ $envres->[2] }) {
-                delete $row->{$k};
-            }
+            $self->delete_fields($envres, $k);
         }
     }
 }
