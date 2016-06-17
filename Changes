@@ -1,5 +1,13 @@
 Revision history for Bencher-Backend
 
+1.009   2016-06-17 (PERLANCAR)
+
+	- [ux] Add column alignment to result.
+
+	- [ux] Use decimal notation by default, except for 'errors' field
+	  or when option --scientific-notation is given.
+
+
 1.008   2016-05-20 (PERLANCAR)
 
 	- Follow Sah::Schemas specification, rename
