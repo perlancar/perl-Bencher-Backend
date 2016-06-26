@@ -31,7 +31,7 @@ sub munge_result {
             for my $rit (@{$envres->[2]}) {
                 my $rit_baseline = first {
                     $_->{participant} eq 'perl -e1 (baseline)' &&
-                        $_->{perl} eq $rit->{perl}
+                        ($_->{perl} // '') eq ($rit->{perl} // '')
                     } @{ $envres->[2] };
                 next unless $rit_baseline;
 
