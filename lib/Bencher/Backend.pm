@@ -1469,6 +1469,7 @@ sub format_result {
     my ($envres, $formatters, $opts) = @_;
 
     $opts //= {};
+    $opts->{render_as_text_table} //= 1;
 
     $formatters //= [
         'AddVsSlowestField',
@@ -1482,7 +1483,7 @@ sub format_result {
         'DeleteNotesFieldIfEmpty',
         'DeleteSeqField',
 
-        'RenderAsTextTable',
+        ('RenderAsTextTable') x !!$opts->{render_as_text_table},
     ];
 
     # load all formatter modules
@@ -1513,6 +1514,9 @@ sub format_result {
         next unless $fmtobj->can("render_result");
         return $fmtobj->render_result($envres);
     }
+
+    # no render_result() has been called, we return the envres
+    $envres;
 }
 
 $SPEC{bencher} = {
