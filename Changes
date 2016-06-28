@@ -1,5 +1,14 @@
 Revision history for Bencher-Backend
 
+1.012   2016-06-28 (PERLANCAR)
+
+	- format_result(): Add a convenient way to skip using the
+	  RenderAsTextTable formatter by passing option render_as_text_table=>0.
+
+	- Avoid some perl undef warnings, e.g. for older bencher results where
+	  'perl' field is not defined.
+
+
 1.011   2016-06-23 (PERLANCAR)
 
 	- More tweaks/fixes for alignments.
