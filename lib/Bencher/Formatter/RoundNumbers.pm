@@ -41,7 +41,6 @@ sub munge_result {
                 die "BUG: no 'time' defined?";
             }
         };
-        say "D:num_significant_digits=<$num_significant_digits>";
         $rit->{time} = $code_fmt->($num_significant_digits, $rit->{time});
         if (exists $rit->{rate}) {
             $rit->{rate} = $code_fmt->($num_significant_digits, $rit->{rate});

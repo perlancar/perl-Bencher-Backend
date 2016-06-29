@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.013   2016-06-29 (PERLANCAR)
+
+        - [Bugfix] Determine number of significant digits from 'time', not from
+          'rate' because 'rate' is removed in module startup result.
+
+
 1.012   2016-06-28 (PERLANCAR)
 
 	- format_result(): Add a convenient way to skip using the
