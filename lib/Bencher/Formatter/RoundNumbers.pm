@@ -30,23 +30,18 @@ sub munge_result {
     };
 
     for my $rit (@{$envres->[2]}) {
-        # 'time' has been scaled by ScaleTime, while 'rate' hasn't. so we use
-        # 1/'rate' here
         my $num_significant_digits = do {
             if ($rit->{errors} == 0) {
                 6;
-            } elsif (exists $rit->{rate}) {
-                sprintf("%d", log( abs(1/$rit->{rate}) /
-                                       $rit->{errors})/log(10));
             } elsif (exists $rit->{time}) {
-                # in module startup benchmark, sometimes the rate has been
-                # eliminated in favor of time
                 sprintf("%d", log( $rit->{time} /
-                                       $rit->{errors})/log(10));
+                                       ($envres->[3]{'func.time_factor'} // 1) /
+                                       $rit->{errors} )/log(10));
             } else {
-                6;
+                die "BUG: no 'time' defined?";
             }
         };
+        say "D:num_significant_digits=<$num_significant_digits>";
         $rit->{time} = $code_fmt->($num_significant_digits, $rit->{time});
         if (exists $rit->{rate}) {
             $rit->{rate} = $code_fmt->($num_significant_digits, $rit->{rate});

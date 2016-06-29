@@ -27,7 +27,8 @@ sub munge_result {
     # workaround for bug RT#113117 (max sometimes undef)
     $max //= $min;
 
-    my ($unit, $factor);
+    my $unit = "";
+    my $factor = 1;
     if ($max <= 1.5e-6) {
         $unit = "ns";
         $factor = 1e9;
@@ -38,6 +39,8 @@ sub munge_result {
         $unit = "ms";
         $factor = 1e3;
     }
+
+    $envres->[3]{'func.time_factor'} = $factor;
 
     if ($unit) {
         for my $rit (@{$envres->[2]}) {
