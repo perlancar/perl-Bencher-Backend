@@ -1519,6 +1519,75 @@ sub format_result {
     $envres;
 }
 
+$SPEC{split_result} = {
+    v => 1.1,
+    summary => 'Split results based on one or more fields',
+    description => <<'_',
+
+This routine splits a table into multiple table based on one or more fields. If
+you want to split a result, you should do it before `format_result()` and then
+format the split results individually.
+
+A common use-case is to produce separate tables for each participant or dataset,
+to make the benchmark results more readable (this is an alternative to having to
+perform separate benchmark run per participant or dataset).
+
+Each split result clones all the result metadata (like `func.module_version`,
+`func.platform_info`, `table.fields`, and so on). But the result items are only
+a subset of the original result.
+
+Return an array where each element is `[\%field_values, $split_result]`.
+
+_
+    args => {
+        envres => {
+            summary => 'Enveloped result from bencher',
+            schema => 'array*', # XXX envres
+            req => 1,
+            pos => 0,
+        },
+        fields => {
+            summary => 'Fields to split the results on',
+            schema => ['array*', of=>'str*'],
+            req => 1,
+            pos => 1,
+        },
+        options => {
+            schema => 'hash*',
+            pos => 2,
+        },
+    },
+    args_as => 'array',
+    result_naked => 1,
+};
+sub split_result {
+    no warnings 'uninitialized';
+
+    require Data::Clone;
+
+    my ($envres, $fields, $opts) = @_;
+
+    $opts //= {};
+
+    my %idxs_by_key; # key= "field1-value\0field2-value\0...", val=[index of item in envres->[2], ...]
+
+    for my $i (0..$#{ $envres->[2] }) {
+        my $item = $envres->[2][$i];
+        my $key = join("\0", map { $item->{$_} } @$fields);
+        push @{ $idxs_by_key{$key} }, $i;
+    }
+
+    my $res = [];
+    for my $key (sort keys %idxs_by_key) {
+        my $split_res = Data::Clone::clone($envres);
+        $split_res->[2] = [map { $split_res->[2][$_] } @{ $idxs_by_key{$key} }];
+        my $split_fields = { map { $_ => $split_res->[2][0]{$_} } @$fields };
+        push @$res, [$split_fields, $split_res];
+    }
+
+    $res;
+}
+
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
