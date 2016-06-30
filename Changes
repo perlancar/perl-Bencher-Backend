@@ -1,5 +1,10 @@
 Revision history for Bencher-Backend
 
+1.014   2016-06-30 (PERLANCAR)
+
+        - Add function: split_result().
+
+
 1.013   2016-06-29 (PERLANCAR)
 
         - [Bugfix] Determine number of significant digits from 'time', not from
