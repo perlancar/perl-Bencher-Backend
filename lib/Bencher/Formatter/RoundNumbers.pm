@@ -34,7 +34,7 @@ sub munge_result {
             if ($rit->{errors} == 0) {
                 6;
             } elsif (exists $rit->{time}) {
-                sprintf("%d", log( $rit->{time} /
+                sprintf("%d", log( abs($rit->{time}) /
                                        ($envres->[3]{'func.time_factor'} // 1) /
                                        $rit->{errors} )/log(10));
             } else {

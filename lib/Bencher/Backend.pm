@@ -2954,6 +2954,11 @@ sub bencher {
         $envres->[3]{'table.fields'}       = \@columns;
         $envres->[3]{'table.field_aligns'} = \@column_aligns;
 
+        if (grep { $_->{time} && $_->{time} < 0 } @{ $envres->[2] }) {
+            warn "There are some negative time in the results, you might ".
+                "want to increase the precision";
+        }
+
         if ($parsed->{after_bench}) {
             $log->infof("Executing after_bench hook ...");
             $parsed->{after_bench}->(
