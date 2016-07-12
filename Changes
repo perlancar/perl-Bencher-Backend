@@ -1,5 +1,13 @@
 Revision history for Bencher-Backend
 
+1.015   2016-07-12 (PERLANCAR)
+
+	- Handle negative time in results.
+
+	- [Bugfix] Still allow stringy matching of --include with name even
+	  though value is a number.
+
+
 1.014   2016-06-30 (PERLANCAR)
 
         - Add function: split_result().
