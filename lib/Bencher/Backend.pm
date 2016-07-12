@@ -259,11 +259,10 @@ sub _filter_records {
                         $included++;
                         last INC;
                     }
-                } else {
-                    if (($rec->{name} // $rec->{_name} // '') eq $inc) {
-                        $included++;
-                        last INC;
-                    }
+                }
+                if (($rec->{name} // $rec->{_name} // '') eq $inc) {
+                    $included++;
+                    last INC;
                 }
             }
             next REC unless $included;
@@ -777,8 +776,12 @@ sub _gen_items {
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
 
-    if ($datasets && @$datasets) {
-        push @permute, "dataset", [map {$_->{seq}} @$datasets];
+    if ($datasets) {
+        if (@$datasets) {
+            push @permute, "dataset", [map {$_->{seq}} @$datasets];
+        } else {
+            return [412, "Please include at least one dataset"];
+        }
     }
 
     $log->debugf("permute: %s", \@permute);
