@@ -1522,6 +1522,134 @@ sub format_result {
     $envres;
 }
 
+# in enhanced mode, foo_bar becomes subscript etc. we don't want this. chart
+# title can be non-enhanced with title => { text=>..., enhanced=>0 }, but
+# dataset title can't. so we use escape stuffs.
+sub _esc_gnuplot_title {
+    my $val = shift;
+    $val =~ s/_/-/g; # XXX superscript, greek?
+    $val;
+}
+
+$SPEC{chart_result} = {
+    v => 1.1,
+    summary => 'Generate chart from the result',
+    description => <<'_',
+
+Will use gnuplot (via `Chart::Gnuplot`) to generate the chart. Will produce
+`.png` files in the specified directory.
+
+Currently only results with one or two permutations of different items will be
+chartable.
+
+Options to customize the look/style of the chart will be added in the future.
+
+_
+    args => {
+        envres => {
+            summary => 'Enveloped result from bencher',
+            schema => 'array*', # XXX envres
+            req => 1,
+            pos => 0,
+        },
+        output_file => {
+            summary => '',
+            schema => 'str*', # XXX filename
+            req => 1,
+            pos => 1,
+            cmdline_aliases => {o=>{}},
+            tags => ['category:output'],
+        },
+        overwrite => {
+            schema => 'bool',
+            tags => ['category:output'],
+        },
+        title => {
+            schema => 'str*',
+        },
+    },
+};
+sub chart_result {
+    require Chart::Gnuplot;
+
+    my %args = @_;
+
+    return [412, "Output file already exists, use overwrite=1 if you want to ".
+                "overwrite the file"]
+        if (-f $args{output_file}) && !$args{overwrite};
+
+    my $envres = format_result($args{envres}, undef, {render_as_text_table=>0});
+    return [412, "No permute information in the result"]
+        unless $envres->[3]{'func.permute'};
+    my %permute = @{ $envres->[3]{'func.permute'} };
+    my $num_different = 0;
+    for (sort keys %permute) {
+        if (@{ $permute{$_} } > 1) {
+            $num_different++;
+        } else {
+            delete $permute{$_};
+        }
+    }
+    return [412, "Result needs to have 1-2 permutations of different items ".
+                "to be charted"]
+        unless $num_different >= 1 && $num_different <= 2;
+    my @permute = sort keys %permute;
+
+    my $data = $envres->[3]{'func.module_startup'} ? "time" : "rate";
+
+    my $chart = Chart::Gnuplot->new(
+        #imagesize => "0.5, 0.5",
+        output => $args{output_file},
+        title  => $args{title} // 'Benchmark result',
+        ylabel => $data,
+        xlabel => "",
+    );
+
+    my @chart_datasets;
+
+    if (@permute == 1) {
+        my (@ydata, @xdata);
+        for my $it (@{ $envres->[2] }) {
+            push @ydata, $it->{$data};
+            push @xdata, $it->{$permute[0]};
+        }
+        my $ds = Chart::Gnuplot::DataSet->new(
+            ydata  => \@ydata,
+            xdata  => \@xdata,
+            title  => _esc_gnuplot_title($permute[0]),
+            border => undef,
+            fill   => {}, # XXX color doesn't affect, on my PC?
+            style  => "histograms",
+        );
+        push @chart_datasets, $ds;
+    } elsif (@permute == 2) {
+        my %p1_values;
+        for my $it (@{ $envres->[2] }) {
+            $p1_values{ $it->{$permute[1]} }++;
+        }
+        for my $p1 (sort keys %p1_values) {
+            my (@ydata, @xdata);
+            for my $it (@{ $envres->[2] }) {
+                next unless $it->{ $permute[1] } eq $p1;
+                push @ydata, $it->{$data};
+                push @xdata, $it->{$permute[0]};
+            }
+            my $ds = Chart::Gnuplot::DataSet->new(
+                ydata  => \@ydata,
+                xdata  => \@xdata,
+                title  => _esc_gnuplot_title("$permute[1]=$p1"),
+                border => undef,
+                fill   => {}, # XXX color doesn't affect, on my PC?
+                style  => "histograms",
+            );
+            push @chart_datasets, $ds;
+        }
+    }
+
+    $chart->plot2d(@chart_datasets);
+    [200, "OK"];
+}
+
 $SPEC{split_result} = {
     v => 1.1,
     summary => 'Split results based on one or more fields',
