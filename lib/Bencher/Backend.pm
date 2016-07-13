@@ -1585,6 +1585,14 @@ sub split_result {
         my $split_res = Data::Clone::clone($envres);
         $split_res->[2] = [map { $split_res->[2][$_] } @{ $idxs_by_key{$key} }];
         my $split_fields = { map { $_ => $split_res->[2][0]{$_} } @$fields };
+
+        if ($split_res->[3]{'func.permute'}) {
+            my %permute = @{ $split_res->[3]{'func.permute'} };
+            delete $permute{$_} for keys %$split_fields;
+            $split_res->[3]{'func.permute'} =
+                [map { $_=>$permute{$_} } sort keys %permute];
+        }
+
         push @$res, [$split_fields, $split_res];
     }
 
