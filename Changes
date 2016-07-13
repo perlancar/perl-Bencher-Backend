@@ -1,5 +1,10 @@
 Revision history for Bencher-Backend
 
+1.016   2016-07-13 (PERLANCAR)
+
+	- Include permutation in result metadata (func.permute).
+
+
 1.015   2016-07-12 (PERLANCAR)
 
 	- Handle negative time in results.
