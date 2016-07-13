@@ -1128,7 +1128,7 @@ sub _gen_items {
         exclude_pattern => $pargs->{exclude_item_pattern},
     ) if $apply_filters;
 
-    [200, "OK", $items];
+    [200, "OK", $items, {'func.permute'=>\@permute}];
 }
 
 sub _complete_scenario_module {
@@ -2514,6 +2514,7 @@ sub bencher {
     }
 
     my $items;
+    my $gen_items_res;
   GEN_ITEMS:
     {
         if ($parsed->{items}) {
@@ -2529,12 +2530,12 @@ sub bencher {
             );
         }
 
-        my $res = _gen_items(scenario=>$parsed, parent_args=>\%args);
-        unless ($res->[0] == 200) {
-            $envres = $res;
+        $gen_items_res = _gen_items(scenario=>$parsed, parent_args=>\%args);
+        unless ($gen_items_res->[0] == 200) {
+            $envres = $gen_items_res;
             goto L_END;
         }
-        $items = $res->[2];
+        $items = $gen_items_res->[2];
     }
 
     if ($action eq 'list-items') {
@@ -2579,6 +2580,8 @@ sub bencher {
         my $participants = $parsed->{participants};
         my $datasets = $parsed->{datasets};
         $envres = [200, "OK", [], {}];
+
+        $envres->[3]{'func.permute'} = $gen_items_res->[3]{'func.permute'};
 
         my $result_dir = $args{result_dir} // $ENV{BENCHER_RESULT_DIR};
         my $save_result = $args{save_result} // defined($result_dir);
