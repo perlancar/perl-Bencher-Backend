@@ -1571,6 +1571,7 @@ _
 };
 sub chart_result {
     require Chart::Gnuplot;
+    require Package::Abbreviate;
 
     my %args = @_;
 
@@ -1634,10 +1635,17 @@ sub chart_result {
                 push @ydata, $it->{$data};
                 push @xdata, $it->{$permute[0]};
             }
+            my $title;
+            if ($permute[1] eq 'participant' && $p1 =~ /\A\w+(::\w+)+\z/) {
+                $title = Package::Abbreviate->new(10, {eager=>1})->abbr($p1);
+            } else {
+                $title = $p1;
+            }
+
             my $ds = Chart::Gnuplot::DataSet->new(
                 ydata  => \@ydata,
                 xdata  => \@xdata,
-                title  => _esc_gnuplot_title("$permute[1]=$p1"),
+                title  => _esc_gnuplot_title($title),
                 border => undef,
                 fill   => {}, # XXX color doesn't affect, on my PC?
                 style  => "histograms",
