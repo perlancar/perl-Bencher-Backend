@@ -1612,7 +1612,11 @@ sub chart_result {
         my (@ydata, @xdata);
         for my $it (@{ $envres->[2] }) {
             push @ydata, $it->{$data};
-            push @xdata, $it->{$permute[0]};
+            my $xdata = $it->{$permute[0]};
+            if ($permute[0] eq 'participant' && $xdata =~ /\A\w+(::\w+)+\z/) {
+                $xdata = Package::Abbreviate->new(10, {eager=>1})->abbr($xdata);
+            }
+            push @xdata, $xdata;
         }
         my $ds = Chart::Gnuplot::DataSet->new(
             ydata  => \@ydata,
