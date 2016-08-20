@@ -17,7 +17,6 @@ with 'Bencher::Role::ResultMunger';
 sub munge_result {
     my ($self, $envres) = @_;
 
-    use DD; dd $envres;
     return unless @{$envres->[2]};
     return unless exists $envres->[2][0]{env_hash};
 

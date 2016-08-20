@@ -1848,6 +1848,7 @@ _
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
         # XXX include_perls & exclude_perls are only relevant when multiperl=1
+        # XXX benchmark_pm_count is only relevant when action=bench-with-benchmark-pm
     },
     args => {
         scenario_file => {
@@ -1925,6 +1926,11 @@ required precision before hitting maximum number of iterations.
 _
             schema => ['float*', between=>[0,1]],
         },
+        benchmark_pm_count => {
+            summary => 'Benchmark count, will be passed to Benchmark.pm',
+            schema  => 'float*',
+            default => -0.5,
+        },
         action => {
             schema => ['str*', {
                 in=>[qw/
@@ -1940,6 +1946,7 @@ _
                            show-items-results-sizes
                            show-items-outputs
                            bench
+                           bench-with-benchmark-pm
                        /]
                     # list-functions
             }],
@@ -2010,6 +2017,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a show-items-outputs',
                     code => sub { $_[0]{action} = 'show-items-outputs' },
+                },
+                bench_with_benchmark_pm => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a bench-with-benchmark-pm',
+                    code => sub { $_[0]{action} = 'bench-with-benchmark-pm' },
                 },
             },
             tags => ['category:action'],
@@ -2814,7 +2826,7 @@ sub bencher {
         goto L_END;
     }
 
-    if ($action =~ /\A(show-items-results-sizes|show-items-results|show-items-outputs|bench)\z/) {
+    if ($action =~ /\A(show-items-results-sizes|show-items-results|show-items-outputs|bench|bench-with-benchmark-pm)\z/) {
         require Capture::Tiny;
         require Module::Load;
         require Time::HiRes;
@@ -2854,7 +2866,11 @@ sub bencher {
             }
         };
 
-        $code_load->('Benchmark::Dumb');
+        if ($action eq 'bench-with-benchmark-pm') {
+            $code_load->('Benchmark');
+        } else {
+            $code_load->('Benchmark::Dumb');
+        }
         $code_load->('Devel::Platform::Info') if $return_meta;
         $code_load->('Sys::Info')             if $return_meta;
         $code_load->('Sys::Load')             if $return_meta;
@@ -3031,6 +3047,41 @@ sub bencher {
             }
             goto RETURN_RESULT;
         }
+
+        if ($action eq 'bench-with-benchmark-pm') {
+            die "bench-with-benchmark-pm currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+            my %codes;
+            my %legends;
+            for my $it (@$items) {
+                my $key = $it->{_name};
+                if (!length($key)) {
+                    $key = $it->{seq};
+                }
+                if (exists $codes{$key}) {
+                    $key .= " #$it->{seq}";
+                }
+                $codes{$key} = $it->{_code};
+                $legends{$key} = join(
+                    " ", map {"$_=$it->{$_}"}
+                        grep { !/^_/ }
+                            sort keys %$it
+                        );
+            }
+            my ($stdout, @res) = &Capture::Tiny::capture_stdout(
+                sub {
+                    Benchmark::cmpthese($args{benchmark_pm_count}, \%codes);
+                    print "\n";
+                    print "Legends:\n";
+                    for (sort keys %legends) {
+                        print "  ", $_, ": ", $legends{$_}, "\n";
+                    }
+                });
+            $envres->[3]{'cmdline.skip_format'} = 1;
+            $envres->[2] = $stdout;
+            goto RETURN_RESULT;
+        }
+
+        # at this point, action = bench
 
         my $time_start = Time::HiRes::time();
         if ($return_meta) {
