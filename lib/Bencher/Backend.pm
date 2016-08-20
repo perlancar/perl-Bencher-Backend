@@ -1131,6 +1131,21 @@ sub _gen_items {
     [200, "OK", $items, {'func.permute'=>\@permute}];
 }
 
+sub _item_label {
+    my %args = @_;
+
+    my $item = $args{item};
+    my $bencher_args = $args{bencher_args};
+
+    join(
+        "",
+        "$item->{seq} ($item->{_name}",
+        ($bencher_args->{multiperl} ? ", perl=$item->{perl}" : ""),
+        ($bencher_args->{multimodver} ? ", modver=$item->{modver}" : ""),
+        ")",
+    );
+}
+
 sub _complete_scenario_module {
     my %args = @_;
     my $word    = $args{word} // '';
@@ -2712,7 +2727,7 @@ sub bencher {
         $envres = [200, "OK", join(
             "",
             map {(
-                "#$_->{seq} ($_->{_name}):\n",
+                "#", _item_label(item=>$_, bencher_args=>\%args), ":\n",
                 dmp($_->{_code}),
                 "\n\n",
             )} @$items
@@ -2888,7 +2903,7 @@ sub bencher {
                 $envres->[2] = join(
                     "",
                     map {(
-                        "#$_->{seq} ($_->{_name}):\n",
+                        "#", _item_label(item=>$_, bencher_args=>\%args), ":\n",
                         $args{raw} ? $_->{_result} : Data::Dump::dump($_->{_result}),
                         "\n\n",
                     )} @$items
@@ -2906,7 +2921,7 @@ sub bencher {
                 $envres->[2] = join(
                     "",
                     map {(
-                        "#$_->{seq} ($_->{_name}):\n",
+                        "#", _item_label(item=>$_, bencher_args=>\%args), ":\n",
                         $_->{_result_size},
                         "\n\n",
                     )} @$items
@@ -2924,10 +2939,10 @@ sub bencher {
                 $envres->[2] = join(
                     "",
                     map {(
-                        "#$_->{seq} ($_->{_name}) stdout (", length($_->{_stdout} // ''), " bytes):\n",
+                        "#", _item_label(item=>$_, bencher_args=>\%args), " stdout (", length($_->{_stdout} // ''), " bytes):\n",
                         ($_->{_stdout} // ''),
                         "\n\n",
-                        "#$_->{seq} ($_->{_name}) stderr (", length($_->{_stderr} // ''), " bytes):\n",
+                        "#", _item_label(item=>$_, bencher_args=>\%args), " stderr (", length($_->{_stderr} // ''), " bytes):\n",
                         ($_->{_stderr} // ''),
                         "\n\n",
                     )} @$items
@@ -3225,3 +3240,7 @@ Set default for C<--results-dir>.
 =head1 SEE ALSO
 
 L<bencher>
+
+L<Bencher>
+
+C<Bencher::Manual::*>
