@@ -1,5 +1,21 @@
 Revision history for Bencher-Backend
 
+1.018   2016-08-20 (PERLANCAR)
+
+        [NEW FEATURES]
+
+        - Allow items to be benchmarked using Benchmark.pm instead of
+          Benchmark::Dumb. To do this, specify bencher option
+          --bench-with-benchmark-pm. Currently if you do this, the raw result
+          from Benchmark.pm will be used and no result table will be
+          returned/saved. Also don't forget to set --benchmark-pm-count when
+          appropriate (the default is -0.5).
+
+        - Introduce scenario property 'env_hashes' (can also be set from the CLI
+          using --env-hash). This allows permuting multiple environment variable
+          sets.
+
+
 1.017   2016-07-13 (PERLANCAR)
 
 	- Add chart_result().
