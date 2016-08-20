@@ -406,6 +406,11 @@ sub _get_scenario {
             push @{ $scenario->{datasets} }, $_;
         }
     }
+    if ($pargs->{env_hashes}) {
+        for (@{ $pargs->{env_hashes} }) {
+            push @{ $scenario->{env_hashes} }, $_;
+        }
+    }
     $scenario;
 }
 
@@ -648,6 +653,7 @@ sub _gen_items {
 
     my $participants;
     my $datasets;
+    my $env_hashes;
     my $module_startup = $pargs->{module_startup} // $parsed->{module_startup};
 
     my @modules = _get_participant_modules($parsed);
@@ -776,12 +782,9 @@ sub _gen_items {
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
 
-    if ($datasets) {
-        if (@$datasets) {
-            push @permute, "dataset", [map {$_->{seq}} @$datasets];
-        } else {
-            return [412, "Please include at least one dataset"];
-        }
+    $env_hashes = $parsed->{env_hashes};
+    if ($env_hashes && @$env_hashes) {
+        push @permute, "env_hash", [0..$#{$env_hashes}];
     }
 
     $log->debugf("permute: %s", \@permute);
@@ -1005,6 +1008,12 @@ sub _gen_items {
 
                 {
                     my $code_str = "package main; sub { ";
+                    if (defined $h->{env_hash}) {
+                        my $env_hash = $env_hashes->[$h->{env_hash}];
+                        for (sort keys %$env_hash) {
+                            $code_str .= "local \$ENV{".dmp($_)."} = ".dmp($env_hash->{$_})."; ";
+                        }
+                    }
                     if ($shell) {
                         $code_str .= "system ".dmp($cmd[0])."; ";
                     } else {
@@ -1017,16 +1026,54 @@ sub _gen_items {
                 };
             } elsif ($p->{type} eq 'perl_code') {
                 if ($p->{code}) {
+                    my $save_env;
+                    my $code_set_env = sub {
+                        my $env_hash = $env_hashes->[shift];
+                        $save_env = {};
+                        for (keys %$env_hash) {
+                            $save_env->{$_} = $ENV{$_};
+                            $ENV{$_} = $env_hash->{$_};
+                        }
+                    };
+                    my $code_restore_env = sub {
+                        for (keys %$save_env) {
+                            $ENV{$_} = $save_env->{$_};
+                        }
+                    };
                     if ($ds) {
                         if ($ds->{argv}) {
-                            $code = sub { $p->{code}->(@{$ds->{argv}}) };
+                            if (defined $h->{env_hash}) {
+                                $code = sub {
+                                    $code_set_env->($h->{env_hash});
+                                    $p->{code}->(@{$ds->{argv}});
+                                    $code_restore_env->();
+                                };
+                            } else {
+                                $code = sub { $p->{code}->(@{$ds->{argv}}) };
+                            }
                         } elsif ($ds->{args}) {
-                            $code = sub { $p->{code}->(%$args) };
+                            if (defined $h->{env_hash}) {
+                                $code = sub {
+                                    $code_set_env->($h->{env_hash});
+                                    $p->{code}->(%$args);
+                                    $code_restore_env->();
+                                };
+                            } else {
+                                $code = sub { $p->{code}->(%$args) };
+                            }
                         } else {
                             return [400, "Participant #$p->{seq}, dataset #$h->{dataset}: No argv/args supplied for code"];
                         }
                     } else {
-                        $code = $p->{code};
+                        if (defined $h->{env_hash}) {
+                            $code = sub {
+                                $code_set_env->($h->{env_hash});
+                                $p->{code}->();
+                                $code_restore_env->();
+                            };
+                        } else {
+                            $code = $p->{code};
+                        }
                     }
                 } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
                     my $template_vars;
@@ -1039,8 +1086,14 @@ sub _gen_items {
                         #warn "Item #$item_seq: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                     }
 
-                    my $code_str = "package main; sub { ".
-                        _fill_template($template, $template_vars, 'dmp') . " }";
+                    my $code_str = "package main; sub { ";
+                    if (defined $h->{env_hash}) {
+                        my $env_hash = $env_hashes->[$h->{env_hash}];
+                        for (sort keys %$env_hash) {
+                            $code_str .= "local \$ENV{".dmp($_)."} = ".dmp($env_hash->{$_})."; ";
+                        }
+                    }
+                    $code_str .= _fill_template($template, $template_vars, 'dmp') . " }";
                     $log->debugf("Item #%d: code=%s", $item_seq, $code_str);
                     $code = eval $code_str;
                     return [400, "Item #$item_seq: code compile error: $@ (code: $code_str)"] if $@;
@@ -1065,6 +1118,9 @@ sub _gen_items {
                     $item->{"dataset"} = $ds->{name} // "#$ds->{seq}";
                 } elsif ($k eq 'participant') {
                     $item->{"participant"} = $p->{name} // $p->{_name} // "#$p->{seq}";
+                } elsif ($k eq 'env_hash') {
+                    $item->{env_hash} = $h->{$k};
+                    $item->{_env} = $env_hashes->[$h->{$k}];
                 } else {
                     $item->{"item_$k"} = $h->{$k};
                 }
@@ -1142,6 +1198,9 @@ sub _item_label {
         "$item->{seq} ($item->{_name}",
         ($bencher_args->{multiperl} ? ", perl=$item->{perl}" : ""),
         ($bencher_args->{multimodver} ? ", modver=$item->{modver}" : ""),
+        ($item->{_env} ?
+             ", env={".join(" ", map {"$_=$item->{_env}{$_}"}
+                                sort keys %{$item->{_env}})."}" : ""),
         ")",
     );
 }
@@ -1431,6 +1490,17 @@ sub _complete_perl {
     );
 }
 
+my $_alias_spec_add_participant = {
+    summary => 'Add a participant',
+    code => sub {
+        require JSON::MaybeXS;
+
+        my $args = shift;
+        push @{ $args->{participants} },
+            JSON::MaybeXS::decode_json($_[0]);
+    },
+};
+
 my $_alias_spec_add_dataset = {
     summary => 'Add a dataset',
     code => sub {
@@ -1442,13 +1512,13 @@ my $_alias_spec_add_dataset = {
     },
 };
 
-my $_alias_spec_add_participant = {
-    summary => 'Add a participant',
+my $_alias_spec_add_env_hash = {
+    summary => 'Add an environment hash',
     code => sub {
         require JSON::MaybeXS;
 
         my $args = shift;
-        push @{ $args->{participants} },
+        push @{ $args->{env_hashes} },
             JSON::MaybeXS::decode_json($_[0]);
     },
 };
@@ -1491,6 +1561,7 @@ sub format_result {
 
     $formatters //= [
         'AddVsSlowestField',
+        'ShowEnv',
         ['Sort', {by=>$opts->{sort}}],
         'ScaleTime',
         'ScaleRate',
@@ -1819,6 +1890,14 @@ _
             cmdline_aliases => {
                 dataset => $_alias_spec_add_dataset,
                 d => $_alias_spec_add_dataset,
+            },
+        },
+        env_hashes => {
+            summary => 'Add environment hashes',
+            'x.name.is_plural' => 1,
+            schema => ['array*', of=>['hash*']],
+            cmdline_aliases => {
+                env_hash => $_alias_spec_add_env_hash,
             },
         },
         precision => {
@@ -2978,6 +3057,12 @@ sub bencher {
         }
         $envres->[3]{'func.precision'} = $precision if $return_meta;
 
+        if ($parsed->{env_hashes}) {
+            require Data::Clone;
+            $envres->[3]{'func.scenario_env_hashes'} =
+                Data::Clone::clone($parsed->{env_hashes});
+        }
+
         $log->tracef("Running benchmark (precision=%g) ...", $precision);
 
         my @columns       = (qw/seq participant dataset/);
@@ -3094,7 +3179,7 @@ sub bencher {
                 };
 
                 for my $k (sort keys %$it) {
-                    next unless $k =~ /^(seq|participant|dataset|perl|modver|item_.+|arg_.+|proc_.+)$/;
+                    next unless $k =~ /^(seq|participant|dataset|env_hash|perl|modver|item_.+|arg_.+|proc_.+)$/;
                     unless (grep {$k eq $_} @columns) {
                         push @columns,       $k;
                         push @column_aligns, 'left';
