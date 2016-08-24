@@ -782,6 +782,14 @@ sub _gen_items {
 
     push @permute, "participant", [map {$_->{seq}} @$participants];
 
+    if ($datasets) {
+        if (@$datasets) {
+            push @permute, "dataset", [map {$_->{seq}} @$datasets];
+        } else {
+            return [412, "Please include at least one dataset"];
+        }
+    }
+
     $env_hashes = $parsed->{env_hashes};
     if ($env_hashes && @$env_hashes) {
         push @permute, "env_hash", [0..$#{$env_hashes}];
