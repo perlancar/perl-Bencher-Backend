@@ -1,5 +1,16 @@
 Revision history for Bencher-Backend
 
+1.020   2016-08-24 (PERLANCAR)
+
+	- [Incompatible change] Rename options for consistency
+	  --include-process-size to --with-process-size,
+	  --include-result-size to --with-result-size (--include-* are for
+	  filter options).
+
+	- [ux] Add completion for comma-separated filter options, e.g.
+	  --include-participants, --exclude-dataset-seqs, etc.
+
+
 1.019   2016-08-24 (PERLANCAR)
 
 	- [ux] Allow specifying options like --include-datasets with
