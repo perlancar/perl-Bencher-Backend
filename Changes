@@ -24,6 +24,8 @@ Revision history for Bencher-Backend
 
 1.018   2016-08-20 (PERLANCAR)
 
+        - Update 2016-08-24: this release is broken, don't use.
+
         [NEW FEATURES]
 
         - Allow items to be benchmarked using Benchmark.pm instead of
