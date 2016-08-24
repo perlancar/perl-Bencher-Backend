@@ -1,5 +1,16 @@
 Revision history for Bencher-Backend
 
+1.019   2016-08-24 (PERLANCAR)
+
+	- [ux] Allow specifying options like --include-datasets with
+	  comma-separated value, so --include-datasets 1,2,3 instead of
+	  --include-dataset 1 --include-dataset 2 --include-dataset 3 or
+	  --include-datasets-json '[1,2,3]'.
+
+	- [Bugfix][Regression] Accidentally removed a code to permute
+	  dataset, breaking v1.018.
+
+
 1.018   2016-08-20 (PERLANCAR)
 
         [NEW FEATURES]
