@@ -24,7 +24,7 @@ Revision history for Bencher-Backend
 
 1.018   2016-08-20 (PERLANCAR)
 
-        - Update 2016-08-24: this release is broken, don't use.
+        - UPDATE: this release is broken, don't use.
 
         [NEW FEATURES]
 
@@ -129,7 +129,8 @@ Revision history for Bencher-Backend
 
 	[ENHANCEMENTS]
 
-        - Add --include-process-size to show process memory stats.
+        - Add --include-process-size to show process memory stats. UPDATE: this
+          option has been renamed to --with-process-size in 1.020.
 
 	- Add output capturing (--show-items-outputs, --capture-stdout,
 	  --capture-stderr).
@@ -208,8 +209,9 @@ Revision history for Bencher-Backend
 0.44    2016-03-26 (PERLANCAR)
 
 	- Show result size (as measured by Devel::Size), add
-	  --include-result-size (& include_result_size scenario property),
-	  add action show-items-results-sizes.
+	--include-result-size (& include_result_size scenario property), add
+	action show-items-results-sizes. UPDATE: the option has been renamed to
+	--with-result-size in 1.020.
 
 	- [Bugfix] Fix completion of -m when there is -I specified.
 
