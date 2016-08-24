@@ -1264,6 +1264,25 @@ sub _complete_participant_module {
     );
 }
 
+sub _complete_participant_modules_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_pmods = _complete_participant_module(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant_module
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_pmods,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
 sub _complete_function {
     my %args = @_;
     my $word    = $args{word} // '';
@@ -1293,6 +1312,25 @@ sub _complete_function {
     );
 }
 
+sub _complete_functions_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_functions = _complete_function(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_functions
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_functions,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
 sub _complete_participant {
     my %args = @_;
     my $word    = $args{word} // '';
@@ -1316,13 +1354,71 @@ sub _complete_participant {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [grep {defined}
-                      map {($_->{seq}, $_->{name}, $_->{_name})}
-                      @{$parsed->{participants}}],
+        array => [grep {defined} map {(
+            ($_->{seq} ) x !!($args{seq} || !defined($args{seq})),
+            ($_->{name}, $_->{_name}) x !!($args{name} || !defined($args{name}))
+        )} @{$parsed->{participants}}],
     );
 }
 
-sub _complete_participant_tags {
+sub _complete_participants_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_participants = _complete_participant(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_participants,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_participant_names_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_pnames = _complete_participant(%args, word=>'', apply_filters=>0, seq=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_pnames,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_participant_seqs_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_pseqs = _complete_participant(%args, word=>'', apply_filters=>0, name=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_pseqs,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_participant_tag {
     my %args = @_;
     my $word    = $args{word} // '';
     my $cmdline = $args{cmdline};
@@ -1356,6 +1452,25 @@ sub _complete_participant_tags {
     );
 }
 
+sub _complete_participant_tags_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_participants = _complete_participant(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_participants,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
 sub _complete_dataset {
     my %args = @_;
     my $word    = $args{word} // '';
@@ -1379,13 +1494,71 @@ sub _complete_dataset {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [grep {defined}
-                      map {($_->{seq}, $_->{name}, $_->{_name})}
-                      @{$parsed->{datasets}}],
+        array => [grep {defined} map {(
+            ($_->{seq} ) x !!($args{seq} || !defined($args{seq})),
+            ($_->{name}, $_->{_name}) x !!($args{name} || !defined($args{name})),
+        )} @{$parsed->{datasets}}],
     );
 }
 
-sub _complete_dataset_tags {
+sub _complete_datasets_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_datasets = _complete_dataset(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_dataset
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_datasets,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_dataset_names_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_dsnames = _complete_dataset(%args, word=>'', apply_filters=>0, seq=>0);
+
+    # at this point Complete::Util is already loaded by _complete_dataset
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_dsnames,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_dataset_seqs_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_dsseqs = _complete_dataset(%args, word=>'', apply_filters=>0, name=>0);
+
+    # at this point Complete::Util is already loaded by _complete_dataset
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_dsseqs,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_dataset_tag {
     my %args = @_;
     my $word    = $args{word} // '';
     my $cmdline = $args{cmdline};
@@ -1449,7 +1622,67 @@ sub _complete_item {
     require Complete::Util;
     Complete::Util::complete_array_elem(
         word  => $word,
-        array => [map {($_->{seq}, $_->{name}, $_->{_name})} @$items],
+        array => [grep {defined} map {(
+            ($_->{seq} ) x !!($args{seq} || !defined($args{seq})),
+            ($_->{name}, $_->{_name}) x !!($args{name} || !defined($args{name}))
+        )} @$items],
+    );
+}
+
+sub _complete_items_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_items = _complete_items(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_dataset
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_items,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_item_names_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_inames = _complete_item(%args, word=>'', apply_filters=>0, seq=>0);
+
+    # at this point Complete::Util is already loaded by _complete_item
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_inames,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
+    );
+}
+
+sub _complete_item_seqs_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_iseqs = _complete_item(%args, word=>'', apply_filters=>0, name=>0);
+
+    # at this point Complete::Util is already loaded by _complete_item
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_iseqs,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
     );
 }
 
@@ -2060,6 +2293,7 @@ _
             'summary.alt.plurality.singular' => 'Add module to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant_module(@_, apply_filters=>0) },
+            completion => sub { _complete_participant_modules_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_module_pattern => {
@@ -2073,6 +2307,7 @@ _
             'summary.alt.plurality.singular' => 'Add module to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant_module(@_, apply_filters=>0) },
+            completion => sub { _complete_participant_modules_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_module_pattern => {
@@ -2087,6 +2322,7 @@ _
             'summary.alt.plurality.singular' => 'Add function to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_function(@_, apply_filters=>0) },
+            completion => sub { _complete_functions_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_function_pattern => {
@@ -2100,6 +2336,7 @@ _
             'summary.alt.plurality.singular' => 'Add function to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_function(@_, apply_filters=>0) },
+            completion => sub { _complete_functions_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_function_pattern => {
@@ -2114,6 +2351,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
+            completion => sub { _complete_participants_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_participant_names => {
@@ -2122,6 +2360,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0, seq=>0) },
+            completion => sub { _complete_participant_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_participant_seqs => {
@@ -2131,6 +2370,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_participant_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_participant_pattern => {
@@ -2148,7 +2388,8 @@ You can specify `A & B` to include participants that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
-            element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
+            element_completion => sub { _complete_participant_tag(@_, apply_filters=>0) },
+            completion => sub { _complete_participant_tags_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_participants => {
@@ -2157,6 +2398,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0) },
+            completion => sub { _complete_participants_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_participant_names => {
@@ -2165,6 +2407,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0, seq=>0) },
+            completion => sub { _complete_participant_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_participant_seqs => {
@@ -2174,6 +2417,7 @@ _
             'summary.alt.plurality.singular' => 'Add participant (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_participant(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_participant_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_participant_pattern => {
@@ -2191,7 +2435,8 @@ You can specify `A & B` to exclude participants that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
-            element_completion => sub { _complete_participant_tags(@_, apply_filters=>0) },
+            element_completion => sub { _complete_participant_tag(@_, apply_filters=>0) },
+            completion => sub { _complete_participant_tags_comma_sep(@_) },
             tags => ['category:filtering'],
         },
 
@@ -2201,6 +2446,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
+            completion => sub { _complete_items_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_item_names => {
@@ -2209,6 +2455,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0, seq=>0) },
+            completion => sub { _complete_item_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_item_seqs => {
@@ -2218,6 +2465,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_item_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_item_pattern => {
@@ -2231,6 +2479,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0) },
+            completion => sub { _complete_items_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_item_names => {
@@ -2239,6 +2488,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0, seq=>0) },
+            completion => sub { _complete_item_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_item_seqs => {
@@ -2248,6 +2498,7 @@ _
             'summary.alt.plurality.singular' => 'Add item (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_item(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_item_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_item_pattern => {
@@ -2262,6 +2513,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            completion => sub { _complete_datasets_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_dataset_names => {
@@ -2270,6 +2522,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            completion => sub { _complete_dataset_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_dataset_seqs => {
@@ -2279,6 +2532,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_dataset_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         include_dataset_pattern => {
@@ -2292,6 +2546,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            completion => sub { _complete_datasets_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_dataset_names => {
@@ -2300,6 +2555,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0) },
+            completion => sub { _complete_dataset_names_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_dataset_seqs => {
@@ -2309,6 +2565,7 @@ _
             'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
             element_completion => sub { _complete_dataset(@_, apply_filters=>0, name=>0) },
+            completion => sub { _complete_dataset_seqs_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_dataset_pattern => {
@@ -2326,7 +2583,8 @@ You can specify `A & B` to include datasets that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
-            element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
+            element_completion => sub { _complete_dataset_tag(@_, apply_filters=>0) },
+            completion => sub { _complete_dataset_tags_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         exclude_dataset_tags => {
@@ -2339,7 +2597,8 @@ You can specify `A & B` to exclude datasets that have _both_ tags A and B.
 
 _
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
-            element_completion => sub { _complete_dataset_tags(@_, apply_filters=>0) },
+            element_completion => sub { _complete_dataset_tag(@_, apply_filters=>0) },
+            completion => sub { _complete_dataset_tags_comma_sep(@_) },
             tags => ['category:filtering'],
         },
         multiperl => {
