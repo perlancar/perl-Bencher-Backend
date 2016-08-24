@@ -2706,7 +2706,7 @@ _
             tags => ['category:format'],
         },
 
-        include_result_size => {
+        with_result_size => {
             summary => "Also return memory usage of each item code's result (return value)",
             schema => 'bool',
             description => <<'_',
@@ -2725,7 +2725,7 @@ _
             schema => 'bool',
         },
 
-        include_process_size => {
+        with_process_size => {
             summary => "Also return process size information for each item",
             schema => 'bool',
             description => <<'_',
@@ -3154,17 +3154,17 @@ sub bencher {
             );
         }
 
-        my $include_process_size = $args{include_process_size} //
-            $parsed->{include_process_size};
+        my $with_process_size = $args{with_process_size} //
+            $parsed->{with_process_size};
 
         # test code first
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
-        my $include_result_size = $args{include_result_size} //
-            $parsed->{include_result_size} // 0;
-        $include_result_size = 1 if $action eq 'show-items-results-sizes';
-        $include_result_size = 0 if $module_startup;
+        my $with_result_size = $args{with_result_size} //
+            $parsed->{with_result_size} // 0;
+        $with_result_size = 1 if $action eq 'show-items-results-sizes';
+        $with_result_size = 0 if $module_startup;
         {
             last if $args{multiperl} || $args{multimodver};
             my $fitems = [];
@@ -3230,12 +3230,12 @@ sub bencher {
                 }
                 $it->{_code_error} = $err;
 
-                if ($include_result_size) {
+                if ($with_result_size) {
                     require Devel::Size;
                     $it->{_result_size} = Devel::Size::total_size($it->{_result});
                 }
 
-                if ($include_process_size) {
+                if ($with_process_size) {
                     _get_process_size($parsed, $it);
                 }
 
@@ -3413,7 +3413,7 @@ sub bencher {
                         "-MBencher::Backend",
                         "-MData::Dmp",
                         @{ $perl_opts{$modver} // [] },
-                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], include_result_size=>q[$include_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], with_result_size=>q[$with_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);
                     system $cmd;
@@ -3476,7 +3476,7 @@ sub bencher {
                     rate    => 1 / $tres->{$seq}{result}{num},
                     time    => $tres->{$seq}{result}{num},
 
-                    (result_size => $it->{_result_size}) x !!$include_result_size,
+                    (result_size => $it->{_result_size}) x !!$with_result_size,
 
                     errors  => $tres->{$seq}{result}{errors}[0],
                     samples => $tres->{$seq}{result}{_dbr_nsamples},
@@ -3498,7 +3498,7 @@ sub bencher {
         push @columns,       qw/seq rate time/;
         push @column_aligns, qw/number number number/;
 
-        if ($include_result_size) {
+        if ($with_result_size) {
             push @columns,       qw/result_size/;
             push @column_aligns, 'number';
         }
