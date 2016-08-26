@@ -1,5 +1,10 @@
 Revision history for Bencher-Backend
 
+1.021   2016-08-26 (PERLANCAR)
+
+	- Introduce --with-args-sizes.
+
+
 1.020   2016-08-24 (PERLANCAR)
 
 	- [Incompatible change] Rename options for consistency
