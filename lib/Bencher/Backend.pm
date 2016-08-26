@@ -931,6 +931,7 @@ sub _gen_items {
             }
 
             my $code;
+            my $template_vars;
             if ($p->{type} eq 'command') {
                 require String::ShellQuote;
                 my @cmd;
@@ -961,7 +962,6 @@ sub _gen_items {
                         $shell = 1;
                     }
                 } elsif (defined $p->{cmdline_template}) {
-                    my $template_vars;
                     if ($ds->{args}) {
                         $template_vars = { %$args };
                     } elsif ($ds->{argv}) {
@@ -979,7 +979,6 @@ sub _gen_items {
                         $shell = 1;
                     }
                 } elsif (defined $p->{perl_cmdline_template}) {
-                    my $template_vars;
                     if ($ds->{args}) {
                         $template_vars = { %$args };
                     } elsif ($ds->{argv}) {
@@ -1084,7 +1083,6 @@ sub _gen_items {
                         }
                     }
                 } elsif (my $template = $p->{code_template} || $p->{fcall_template}) {
-                    my $template_vars;
                     if ($ds->{args}) {
                         $template_vars = { %$args };
                     } elsif ($ds->{argv}) {
@@ -1113,6 +1111,7 @@ sub _gen_items {
             my $item = {
                 _code => $code,
                 _permute => $h,
+                _template_vars => $template_vars,
                 ((_permute_args => $h_args) x !!$ds->{args}),
             };
             for my $k (keys %$h) {
@@ -2716,6 +2715,16 @@ Memory size is measured using `Devel::Size`.
 _
         },
 
+        with_args_size => {
+            summary => "Also return memory usage of item's arguments",
+            schema => 'bool',
+            description => <<'_',
+
+Memory size is measured using `Devel::Size`.
+
+_
+        },
+
         capture_stdout => {
             summary => 'Trap output to stdout',
             schema => 'bool',
@@ -3161,8 +3170,11 @@ sub bencher {
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
+        my $with_args_size = $args{with_args_size} //
+            $parsed->{with_args_size} // 0;
         my $with_result_size = $args{with_result_size} //
             $parsed->{with_result_size} // 0;
+        $with_args_size   = 0 if $module_startup;
         $with_result_size = 1 if $action eq 'show-items-results-sizes';
         $with_result_size = 0 if $module_startup;
         {
@@ -3171,8 +3183,10 @@ sub bencher {
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{_name});
+
+                my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
+
                 eval {
-                    my $participant = _find_record_by_seq($participants, $it->{_permute}{participant});
                     my $result_is_list = $participant->{result_is_list} // 0;
                     if ($capture_stdout && $capture_stderr) {
                         my ($stdout, $stderr, @res) = &Capture::Tiny::capture($it->{_code});
@@ -3229,6 +3243,16 @@ sub bencher {
                     }
                 }
                 $it->{_code_error} = $err;
+
+                {
+                    last unless $with_args_size;
+                    last unless $it->{_template_vars};
+                    require Devel::Size;
+                    for my $arg (keys %{ $it->{_template_vars} }) {
+                        $it->{_arg_sizes}{$arg} = Devel::Size::total_size(
+                            $it->{_template_vars}{$arg});
+                    }
+                }
 
                 if ($with_result_size) {
                     require Devel::Size;
@@ -3373,6 +3397,7 @@ sub bencher {
         my @columns       = (qw/seq participant dataset/);
         my @column_aligns = ('right', 'left', 'left');
         my @rows;
+        my %arg_size_columns;
         if ($args{multiperl} || $args{multimodver}) {
             require Data::Clone;
             require Devel::Size;
@@ -3413,7 +3438,7 @@ sub bencher {
                         "-MBencher::Backend",
                         "-MData::Dmp",
                         @{ $perl_opts{$modver} // [] },
-                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], with_result_size=>q[$with_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], with_args_size=>q[$with_args_size], with_result_size=>q[$with_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);
                     system $cmd;
@@ -3476,6 +3501,10 @@ sub bencher {
                     rate    => 1 / $tres->{$seq}{result}{num},
                     time    => $tres->{$seq}{result}{num},
 
+                    ($with_args_size && $it->{_arg_sizes} ?
+                        (map { my $c = "arg_${_}_size"; $arg_size_columns{$c}++; ($c => $it->{_arg_sizes}{$_})}
+                         keys %{ $it->{_arg_sizes} }) : ()),
+
                     (result_size => $it->{_result_size}) x !!$with_result_size,
 
                     errors  => $tres->{$seq}{result}{errors}[0],
@@ -3498,6 +3527,12 @@ sub bencher {
         push @columns,       qw/seq rate time/;
         push @column_aligns, qw/number number number/;
 
+        if ($with_args_size) {
+            for my $col (keys %arg_size_columns) {
+                push @columns,       $col;
+                push @column_aligns, 'number';
+            }
+        }
         if ($with_result_size) {
             push @columns,       qw/result_size/;
             push @column_aligns, 'number';

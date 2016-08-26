@@ -62,7 +62,7 @@ sub munge_result {
         # they are not time measurement, but we do want to round it when it has
         # been divided when converting unit to kB, MB, etc.
         for my $col (keys %$rit) {
-            if ($col =~ /^(result|proc_\w+|proc)_size$/ && $rit->{$col} != int($rit->{$col})) {
+            if ($col =~ /^(result|proc_\w+|proc|arg_\w+)_size$/ && $rit->{$col} != int($rit->{$col})) {
                 $rit->{$col} = $code_fmt->(
                     $num_significant_digits, $rit->{$col});
             }
