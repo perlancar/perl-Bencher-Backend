@@ -2655,7 +2655,16 @@ _
         include_path => {
             summary => 'Additional module search paths',
             'summary.alt.plurality.singular' => 'Add path to module search path',
-            schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
+            schema => ['array*', of=>['str*'],
+
+                       # for now we disable this because: when doing completion
+                       # we are not using validation/coercion from Data::Sah, so
+                       # include_path will still be a string instead of array,
+                       # and this breaks routines that expect this argument to
+                       # be an array
+
+                       #'x.perl.coerce_rules' => ['str_comma_sep'],
+                   ],
             description => <<'_',
 
 Used when searching for scenario module, or when in multimodver mode.
