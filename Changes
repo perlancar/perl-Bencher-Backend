@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.023   2016-09-09 (PERLANCAR)
+
+	- Aside from observing per-dataset 'result' property, also observe
+	  scenario's 'result' property for when we don't have any datasets.
+
+
 1.022   2016-09-09 (PERLANCAR)
 
 	- [workaround] Some completions were broken because we use
