@@ -3240,6 +3240,7 @@ sub bencher {
                     }
                     if (exists $parsed->{result}) {
                         $dmp_exp_result = dmp($parsed->{result});
+                        goto CHK;
                     }
                     last;
                   CHK:
