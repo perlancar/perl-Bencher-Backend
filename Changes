@@ -1,5 +1,14 @@
 Revision history for Bencher-Backend
 
+1.022   2016-09-09 (PERLANCAR)
+
+	- [workaround] Some completions were broken because we use
+	  'str_comma_sep' coercion rules for --include-path, this is
+	  because include_path is now a string instead or array[str] before
+	  validation+coercion, and completion currently does not use
+	  Data::Sah, so now we disable this coercion rule for now.
+
+
 1.021   2016-08-26 (PERLANCAR)
 
 	- Introduce --with-args-sizes.
