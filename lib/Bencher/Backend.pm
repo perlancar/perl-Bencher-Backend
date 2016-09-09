@@ -3228,14 +3228,24 @@ sub bencher {
                 }
 
                 $err = "";
-                if (exists $it->{_permute}{dataset}) {
-                    my $dataset = _find_record_by_seq($datasets, $it->{_permute}{dataset});
-                    if (exists $dataset->{result}) {
-                        my $dmp_result = dmp($it->{_result});
-                        my $dmp_exp_result = dmp($dataset->{result});
-                        if ($dmp_result ne $dmp_exp_result) {
-                            $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
+                # check against expected result, if specified
+                {
+                    my $dmp_exp_result;
+                    if (exists $it->{_permute}{dataset}) {
+                        my $dataset = _find_record_by_seq($datasets, $it->{_permute}{dataset});
+                        if (exists $dataset->{result}) {
+                            $dmp_exp_result = dmp($dataset->{result});
+                            goto CHK;
                         }
+                    }
+                    if (exists $parsed->{result}) {
+                        $dmp_exp_result = dmp($parsed->{result});
+                    }
+                    last;
+                  CHK:
+                    my $dmp_result = dmp($it->{_result});
+                    if ($dmp_result ne $dmp_exp_result) {
+                        $err = "Result ($dmp_result) is not as expected ($dmp_exp_result)";
                     }
                 }
 
