@@ -1862,7 +1862,7 @@ $SPEC{chart_result} = {
     summary => 'Generate chart from the result',
     description => <<'_',
 
-Will use gnuplot (via `Chart::Gnuplot`) to generate the chart. Will produce
+Will use gnuplot (via <pm:Chart::Gnuplot>) to generate the chart. Will produce
 `.png` files in the specified directory.
 
 Currently only results with one or two permutations of different items will be
@@ -2079,8 +2079,8 @@ permute the participants and datasets into benchmark items, ready to run.
 You can choose to include only some participants, datasets, or items. And there
 are options to view your scenario's participants/datasets/items/mentioned
 modules, run benchmark against multiple perls and module versions, and so on.
-Bencher comes as a CLI script as well as Perl module. See the `Bencher::Backend`
-documentation for more information.
+Bencher comes as a CLI script as well as Perl module. See the
+<pm:Bencher::Backend> documentation for more information.
 
 _
     args_rels => {
@@ -2606,9 +2606,9 @@ _
             default => 0,
             description => <<'_',
 
-Requires `App::perlbrew` to be installed. Will use installed perls from the
-perlbrew installation. Each installed perl must have `Bencher::Backend` module
-installed (in addition to having all modules that you want to benchmark,
+Requires <pm:App::perlbrew> to be installed. Will use installed perls from the
+perlbrew installation. Each installed perl must have <pm:Bencher::Backend>
+module installed (in addition to having all modules that you want to benchmark,
 obviously).
 
 By default, only perls having Bencher::Backend will be included. Use
@@ -2719,7 +2719,7 @@ _
             schema => 'bool',
             description => <<'_',
 
-Memory size is measured using `Devel::Size`.
+Memory size is measured using <pm:Devel::Size>.
 
 _
         },
@@ -2729,7 +2729,7 @@ _
             schema => 'bool',
             description => <<'_',
 
-Memory size is measured using `Devel::Size`.
+Memory size is measured using <pm:Devel::Size>.
 
 _
         },
