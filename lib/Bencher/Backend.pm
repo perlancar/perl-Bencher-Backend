@@ -2299,7 +2299,6 @@ _
                     'Benchmark::Dumb::SimpleTime',
                 ],
             }],
-            default => 'Benchmark::Dumb',
             description => <<'_',
 
 The default is `Benchmark::Dumb` which should be good enough for most cases.
