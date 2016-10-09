@@ -2280,6 +2280,17 @@ Perl.
 
 _
         },
+        test => {
+            summary => 'Whether to test participant code once first before benchmarking',
+            schema => ['bool*'],
+            description => <<'_',
+
+By default, participant code is run once first for testing (e.g. whether it dies
+or return the correct result) before benchmarking. If your code runs for many
+seconds, you might want to skip this test and set this to 0.
+
+_
+        },
         module_startup => {
             schema => ['bool*', is=>1],
             summary => 'Benchmark module startup overhead instead of normal benchmark',
@@ -3201,6 +3212,7 @@ sub bencher {
             $parsed->{with_process_size};
 
         # test code first
+        my $test = $args{test} // $parsed->{test} // 1;
         my $on_failure = $args{on_failure} // $parsed->{on_failure} // 'die';
         my $on_result_failure = $args{on_result_failure} //
             $parsed->{on_result_failure} // $on_failure;
@@ -3212,7 +3224,7 @@ sub bencher {
         $with_result_size = 1 if $action eq 'show-items-results-sizes';
         $with_result_size = 0 if $module_startup;
         {
-            last if $args{multiperl} || $args{multimodver};
+            last if $args{multiperl} || $args{multimodver} || !$test;
             my $fitems = [];
             for my $it (@$items) {
                 $log->tracef("Testing code for item #%d (%s) ...",
