@@ -2084,11 +2084,10 @@ Bencher comes as a CLI script as well as Perl module. See the
 
 _
     args_rels => {
-        # XXX precision & precision_limit is only relevant when action=bench
+        # XXX precision & precision_limit is only relevant when action =~ /^bench(-with-.+)?$/
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
         # XXX include_perls & exclude_perls are only relevant when multiperl=1
-        # XXX benchmark_pm_count is only relevant when action=bench-with-benchmark-pm
     },
     args => {
         scenario_file => {
@@ -2142,16 +2141,32 @@ _
             },
         },
         precision => {
-            summary => 'Precision, will be passed to Benchmark::Dumb',
+            summary => 'Precision',
             description => <<'_',
+
+When benchmarking with the default <pm:Benchmark::Dumb> runner, will pass the
+precision to it. The value is a fraction, e.g. 0.5 (for 5% precision), 0.01 (for
+1% precision), and so on. Or, it can also be a positive integer to speciify
+minimum number of iterations, usually need to be at least 6 to avoid the "Number
+of initial runs is very small (<6)" warning. The default precision is 0, which
+is to let Benchmark::Dumb determine the precision, which is good enough for most
+cases.
+
+When benchmarking with <pm:Benchmark> runner, will pass this value as the
+C<$count> argument. Which can be a positive integer to mean the number of
+iterations to do (e.g. 10, or 100). Or, can also be set to a negative number
+(e.g. -0.5 or -2) to mean minimum number of CPU seconds. The default is -0.5.
+
+When benchmarking with <pm:Benchmark::Dumb::SimpleTime>, this value is a
+positive integer which means the number of iterations to perform.
 
 This setting overrides `default_precision` property in the scenario.
 
 _
-            schema => ['float*', min=>0],
+            schema => ['float*'],
         },
         precision_limit => {
-            summary => 'Set maximum (=smallest number) precision',
+            summary => 'Set precision limit',
             description => <<'_',
 
 Instead of setting `precision` which forces a single value, you can also set
@@ -2165,11 +2180,6 @@ required precision before hitting maximum number of iterations.
 
 _
             schema => ['float*', between=>[0,1]],
-        },
-        benchmark_pm_count => {
-            summary => 'Benchmark count, will be passed to Benchmark.pm',
-            schema  => 'float*',
-            default => -0.5,
         },
         action => {
             schema => ['str*', {
@@ -2186,7 +2196,6 @@ _
                            show-items-results-sizes
                            show-items-outputs
                            bench
-                           bench-with-benchmark-pm
                        /]
                     # list-functions
             }],
@@ -2258,11 +2267,6 @@ _
                     summary => 'Shortcut for -a show-items-outputs',
                     code => sub { $_[0]{action} = 'show-items-outputs' },
                 },
-                bench_with_benchmark_pm => {
-                    is_flag => 1,
-                    summary => 'Shortcut for -a bench-with-benchmark-pm',
-                    code => sub { $_[0]{action} = 'bench-with-benchmark-pm' },
-                },
             },
             tags => ['category:action'],
         },
@@ -2284,6 +2288,30 @@ _
         detail => {
             schema => ['bool*'],
             cmdline_aliases => {l=>{}},
+        },
+
+        runner => {
+            summary => 'Runner module to use',
+            schema => ['str*', {
+                in=>[
+                    'Benchmark::Dumb',
+                    'Benchmark',
+                    'Benchmark::Dumb::SimpleTime',
+                ],
+            }],
+            default => 'Benchmark::Dumb',
+            description => <<'_',
+
+The default is `Benchmark::Dumb` which should be good enough for most cases.
+
+You can use `Benchmark` runner (`Benchmark.pm`) if you are accustomed to it and
+want to see its output format.
+
+You can use `Benchmark::Dumb::SimpleTime` if your participant code runs for at
+least a few to many seconds and you want to use very few iterations (like 1 or
+2) because you don't want to wait for too long.
+
+_
         },
 
         include_modules => {
@@ -3098,7 +3126,7 @@ sub bencher {
         goto L_END;
     }
 
-    if ($action =~ /\A(show-items-results-sizes|show-items-results|show-items-outputs|bench|bench-with-benchmark-pm)\z/) {
+    if ($action =~ /\A(show-items-results-sizes|show-items-results|show-items-outputs|bench)\z/) {
         require Capture::Tiny;
         require Module::Load;
         require Time::HiRes;
@@ -3138,11 +3166,9 @@ sub bencher {
             }
         };
 
-        if ($action eq 'bench-with-benchmark-pm') {
-            $code_load->('Benchmark');
-        } else {
-            $code_load->('Benchmark::Dumb');
-        }
+        my $runner = $args{runner} // $parsed->{runner};
+        $code_load->($runner);
+
         $code_load->('Devel::Platform::Info') if $return_meta;
         $code_load->('Sys::Info')             if $return_meta;
         $code_load->('Sys::Load')             if $return_meta;
@@ -3346,8 +3372,43 @@ sub bencher {
             goto RETURN_RESULT;
         }
 
-        if ($action eq 'bench-with-benchmark-pm') {
-            die "bench-with-benchmark-pm currently not supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+        # at this point, action = bench
+
+        my $precision;
+        if ($runner eq 'Benchmark') {
+            $precision = $args{precision} // -0.5;
+            if (defined $args{precision_limit}) {
+                if ($precision < 0) {
+                    if ($precision < $args{precision_limit}) {
+                        $precision = $args{precision_limit};
+                    }
+                } else {
+                    if ($precision > $args{precision_limit}) {
+                        $precision = $args{precision_limit};
+                    }
+                }
+            }
+        } elsif ($runner eq 'Benchmark::Dumb::SimpleTime') {
+            $precision = $args{precision} // 1;
+            return [400, "When running with runner '$runner', precision must be an integer >= 1"]
+                unless $precision =~ /\A1[0-9]*\z/;
+            if (defined $args{precision_limit}) {
+                return [400, "When running with runner '$runner', precision_limit must be an integer >= 1"]
+                    unless $args{precision_limit} =~ /\A1[0-9]*\z/;
+                if ($precision > $args{precision_limit}) {
+                    $precision = $args{precision_limit};
+                }
+            }
+        } else {
+            $precision = $args{precision} //
+                $parsed->{precision} // $parsed->{default_precision} // 0;
+            if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
+                $precision = $args{precision_limit};
+            }
+        }
+
+        if ($runner eq 'Benchmark') {
+            die "Bench with Benchmark.pm currently does not support on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
             my %codes;
             my %legends;
             for my $it (@$items) {
@@ -3367,7 +3428,7 @@ sub bencher {
             }
             my ($stdout, @res) = &Capture::Tiny::capture_stdout(
                 sub {
-                    Benchmark::cmpthese($args{benchmark_pm_count}, \%codes);
+                    Benchmark::cmpthese($precision, \%codes);
                     print "\n";
                     print "Legends:\n";
                     for (sort keys %legends) {
@@ -3378,8 +3439,6 @@ sub bencher {
             $envres->[2] = $stdout;
             goto RETURN_RESULT;
         }
-
-        # at this point, action = bench
 
         my $time_start = Time::HiRes::time();
         if ($return_meta) {
@@ -3399,11 +3458,6 @@ sub bencher {
             $envres->[3]{'func.time_start'} = $time_start;
         }
 
-        my $precision = $args{precision} //
-            $parsed->{precision} // $parsed->{default_precision} // 0;
-        if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
-            $precision = $args{precision_limit};
-        }
         $envres->[3]{'func.precision'} = $precision if $return_meta;
 
         if ($parsed->{env_hashes}) {
@@ -3458,7 +3512,7 @@ sub bencher {
                         "-MBencher::Backend",
                         "-MData::Dmp",
                         @{ $perl_opts{$modver} // [] },
-                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], precision=>$precision, scenario_file=>q[$scd_path], with_args_size=>q[$with_args_size], with_result_size=>q[$with_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
+                        "-e'print dmp(Bencher::Backend::bencher(action=>q[bench], runner=>q[$runner], precision=>$precision, scenario_file=>q[$scd_path], with_args_size=>q[$with_args_size], with_result_size=>q[$with_result_size], return_meta=>0, capture_stdout=>$capture_stdout, capture_stderr=>$capture_stderr))' > '$res_path'",
                     );
                     $log->debugf("Running %s ...", $cmd);
                     system $cmd;
@@ -3489,7 +3543,8 @@ sub bencher {
         } else {
             my $tres;
             my $doit = sub {
-                $tres = Benchmark::Dumb::_timethese_guts(
+                no strict 'refs';
+                $tres = &{"$runner\::_timethese_guts"}(
                     $precision,
                     {
                         map { $_->{seq} => $_->{_code} } @$items
