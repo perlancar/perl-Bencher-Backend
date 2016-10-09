@@ -1,15 +1,25 @@
 Revision history for Bencher-Backend
 
+1.025   2016-10-09 (PERLANCAR)
+
+        - [Bugfix] Several bug fixes.
+
+        - Add property/option 'test' to skip testing participant code prior to
+          benchmarking. Useful if code runs for at least a few seconds and we
+          don't want to wait for too long.
+
+
 1.024   2016-10-09 (PERLANCAR)
 
 	- [Incompatible change] Remove action 'bench-with-benchmark-pm' (see
           below to run benchmark with Benchmark.pm).
 
-        - Add option --runner which can be the default 'Benchmark::Dumb', or
-          'Benchmark', or the new 'Benchmark::Dumb::SimpleTime' which can be
-          used if you want to benchmark code that runs for at least a few
-          seconds with very few iterations (like 1 or 2) without "Number of runs
-          too small" warning from Benchmark::Dumb.
+        - Add property/option 'runner' which can be the default
+          'Benchmark::Dumb', or 'Benchmark', or the new
+          'Benchmark::Dumb::SimpleTime' which can be used if you want to
+          benchmark code that runs for at least a few seconds with very few
+          iterations (like 1 or 2) without "Number of runs too small" warning
+          from Benchmark::Dumb.
 
 
 1.023   2016-09-09 (PERLANCAR)
