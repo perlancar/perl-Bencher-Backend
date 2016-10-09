@@ -31,7 +31,7 @@ sub munge_result {
 
     for my $rit (@{$envres->[2]}) {
         my $num_significant_digits = do {
-            if ($rit->{errors} == 0) {
+            if (!defined($rit->{errors}) || $rit->{errors} == 0) {
                 6;
             } elsif (exists $rit->{time}) {
                 sprintf("%d", log( abs($rit->{time}) /
@@ -45,7 +45,8 @@ sub munge_result {
         if (exists $rit->{rate}) {
             $rit->{rate} = $code_fmt->($num_significant_digits, $rit->{rate});
         }
-        $rit->{errors} = $code_fmt->(2, $rit->{errors}, 1);
+        $rit->{errors} = $code_fmt->(2, $rit->{errors}, 1)
+            if defined $rit->{errors};
 
         # XXX this formatter shouldn't be aware directly of mod_overhead_time
         if (exists $rit->{mod_overhead_time}) {
