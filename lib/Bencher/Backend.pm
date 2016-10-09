@@ -3166,7 +3166,7 @@ sub bencher {
             }
         };
 
-        my $runner = $args{runner} // $parsed->{runner};
+        my $runner = $args{runner} // $parsed->{runner} // 'Benchmark::Dumb';
         $code_load->($runner);
 
         $code_load->('Devel::Platform::Info') if $return_meta;
@@ -3391,10 +3391,10 @@ sub bencher {
         } elsif ($runner eq 'Benchmark::Dumb::SimpleTime') {
             $precision = $args{precision} // 1;
             return [400, "When running with runner '$runner', precision must be an integer >= 1"]
-                unless $precision =~ /\A1[0-9]*\z/;
+                unless $precision =~ /\A[1-9][0-9]*\z/;
             if (defined $args{precision_limit}) {
                 return [400, "When running with runner '$runner', precision_limit must be an integer >= 1"]
-                    unless $args{precision_limit} =~ /\A1[0-9]*\z/;
+                    unless $args{precision_limit} =~ /\A[1-9][0-9]*\z/;
                 if ($precision > $args{precision_limit}) {
                     $precision = $args{precision_limit};
                 }
