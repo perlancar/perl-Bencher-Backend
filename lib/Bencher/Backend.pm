@@ -3227,6 +3227,14 @@ sub bencher {
             last if $args{multiperl} || $args{multimodver} || !$test;
             my $fitems = [];
             for my $it (@$items) {
+                if ($parsed->{before_test_item}) {
+                    $parsed->{before_test_item}->(
+                        hook_name => 'before_test_item',
+                        scenario  => $parsed,
+                        stash     => $stash,
+                        item      => $it,
+                    );
+                }
                 $log->tracef("Testing code for item #%d (%s) ...",
                              $it->{seq}, $it->{_name});
 
@@ -3253,6 +3261,15 @@ sub bencher {
                     }
                 };
                 my $err = $@;
+
+                if ($parsed->{after_test_item}) {
+                    $err = $parsed->{after_test_item}->(
+                        hook_name => 'after_test_item',
+                        scenario  => $parsed,
+                        stash     => $stash,
+                        item      => $it,
+                    );
+                }
 
                 if ($err) {
                     if ($on_failure eq 'skip' || $action eq 'show-items-results') {
