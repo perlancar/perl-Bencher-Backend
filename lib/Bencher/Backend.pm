@@ -426,6 +426,14 @@ sub _parse_scenario {
 
     my $parsed = {%$unparsed}; # shallow copy
 
+    if ($parsed->{before_parse_participants}) {
+        $log->infof("Executing before_parse_participants hook ...");
+        $parsed->{before_parse_participants}->(
+            hook_name => 'before_parse_participants',
+            scenario  => $unparsed,
+            stash     => $args{stash},
+        );
+    }
     # normalize participants
     {
         $parsed->{participants} = [];
@@ -545,6 +553,15 @@ sub _parse_scenario {
             apply_include_by_default_filter => $aibdf,
         ) if $apply_filters;
     } # normalize participants
+
+    if ($parsed->{before_parse_datasets}) {
+        $log->infof("Executing before_parse_datasets hook ...");
+        $parsed->{before_parse_datasets}->(
+            hook_name => 'before_parse_datasets',
+            scenario  => $unparsed,
+            stash     => $args{stash},
+        );
+    }
 
     # normalize datasets
     if ($unparsed->{datasets}) {
@@ -2947,6 +2964,7 @@ sub bencher {
         scenario=>$unparsed,
         parent_args=>\%args,
         apply_include_by_default_filter => $aibdf,
+        stash => $stash,
     );
 
     if ($parsed->{after_parse_scenario}) {
@@ -2960,6 +2978,8 @@ sub bencher {
 
     my $module_startup = $args{module_startup} // $parsed->{module_startup};
 
+    # DEPRECATED/now undocumented, see before_parse_datasets for more
+    # appropriate hook
     if ($parsed->{before_list_datasets}) {
         $log->infof("Executing before_list_datasets hook ...");
         $parsed->{before_list_datasets}->(
@@ -3006,6 +3026,8 @@ sub bencher {
         goto L_END;
     }
 
+    # DEPRECATED/now undocumented, see before_parse_participants for more
+    # appropriate hook
     if ($parsed->{before_list_participants}) {
         $log->infof("Executing before_list_participants hook ...");
         $parsed->{before_list_participants}->(
