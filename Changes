@@ -1,5 +1,15 @@
 Revision history for Bencher-Backend
 
+1.026   2016-10-13 (PERLANCAR)
+
+	- Add hooks before_parse_{datasets,participants} and deprecated
+	  before_list_{datasets,participants}. To generate
+	  datasets/participants dynamically, use the before_parse_* hooks
+	  because the datasets/participants can later still be filtered.
+
+	- Add hooks 'before_test_item' & 'after_test_item'.
+
+
 1.025   2016-10-09 (PERLANCAR)
 
         - [Bugfix] Several bug fixes.
