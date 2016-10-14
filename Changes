@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.027   2016-10-14 (PERLANCAR)
+
+        - Add options: --exclude-xs-modules (--noxs) --exclude-pp-modules
+          (--nopp).
+
+
 1.026   2016-10-13 (PERLANCAR)
 
 	- Add hooks before_parse_{datasets,participants} and deprecated
