@@ -535,6 +535,29 @@ sub _parse_scenario {
                     !defined($_->{function}) || $_->{function} !~ qr/$pargs->{exclude_function_pattern}/i
                 } @{ $parsed->{participants} }];
             }
+
+            if ($pargs->{exclude_pp_modules} || $pargs->{exclude_xs_modules}) {
+                require Module::XSOrPP;
+                $parsed->{participants} = [grep {
+                    if (!defined($_->{module})) {
+                        1;
+                    } else {
+                        my $xs_or_pp = Module::XSOrPP::xs_or_pp($_->{module});
+                        if (!$xs_or_pp) {
+                            warn "Can't determine if module '$_->{module}' is XS or PP";
+                            1;
+                        } elsif ($xs_or_pp =~ /xs/ && $pargs->{exclude_xs_modules}) {
+                            $log->info("Excluding XS module '$_->{module}'");
+                            0;
+                        } elsif ($xs_or_pp =~ /pp/ && $pargs->{exclude_pp_modules}) {
+                            $log->info("Excluding PP module '$_->{module}'");
+                            0;
+                        } else {
+                            1;
+                        }
+                    }
+                } @{ $parsed->{participants} }];
+            }
         }
 
         $parsed->{participants} = _filter_records(
@@ -2367,6 +2390,19 @@ _
         exclude_module_pattern => {
             summary => 'Exclude module(s) matching this regex pattern',
             schema => ['re*'],
+            tags => ['category:filtering'],
+        },
+
+        exclude_xs_modules => {
+            summary => 'Exclude XS modules',
+            schema => ['bool*', is=>1],
+            cmdline_aliases => { noxs => {is_flag=>1} },
+            tags => ['category:filtering'],
+        },
+        exclude_pp_modules => {
+            summary => 'Exclude PP (pure-Perl) modules',
+            schema => ['bool*', is=>1],
+            cmdline_aliases => { nopp => {is_flag=>1} },
             tags => ['category:filtering'],
         },
 
