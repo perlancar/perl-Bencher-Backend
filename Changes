@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.028   2016-10-20 (PERLANCAR)
+
+        - Do not require Sys::Load on Windows because it doesn't install there.
+          Bencher now works on Windows.
+
+
 1.027   2016-10-14 (PERLANCAR)
 
         - Add options: --exclude-xs-modules (--noxs) --exclude-pp-modules
