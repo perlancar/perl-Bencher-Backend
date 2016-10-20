@@ -3223,9 +3223,16 @@ sub bencher {
 
         my $code_load = sub {
             no strict 'refs';
-            my $mod = shift;
+            my ($mod, $optional) = @_;
             $log->tracef("Loading module: %s", $mod);
-            Module::Load::load($mod);
+            if ($optional) {
+                eval { Module::Load::load($mod) };
+                $log->infof("Failed loading optional module %s: %s, skipped",
+                            $mod, $@);
+                return;
+            } else {
+                Module::Load::load($mod);
+            }
             if ($return_meta) {
                 # we'll just use ${"$mod\::VERSION"} because we are already
                 # loading the module
@@ -3239,7 +3246,7 @@ sub bencher {
 
         $code_load->('Devel::Platform::Info') if $return_meta;
         $code_load->('Sys::Info')             if $return_meta;
-        $code_load->('Sys::Load')             if $return_meta;
+        $code_load->('Sys::Load', 'optional') if $return_meta;
 
         # load all participant modules
         {
@@ -3540,7 +3547,8 @@ sub bencher {
                 $envres->[3]{'func.module_versions'}{$mod} =
                     ${"$mod\::VERSION"};
             }
-            $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()];
+            $envres->[3]{'func.sysload_before'} = [Sys::Load::getload()]
+                if $INC{"System/Load.pm"};
             $envres->[3]{'func.time_start'} = $time_start;
         }
 
@@ -3653,7 +3661,8 @@ sub bencher {
                 $envres->[3]{'func.time_end'} = Time::HiRes::time();
                 $envres->[3]{'func.elapsed_time'} =
                     $envres->[3]{'func.time_end'} - $envres->[3]{'func.time_start'};
-                $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()];
+                $envres->[3]{'func.sysload_after'} = [Sys::Load::getload()]
+                    if $INC{"System/Load.pm"};
             }
 
             for my $seq (sort {$a<=>$b} keys %$tres) {
