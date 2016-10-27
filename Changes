@@ -1,5 +1,10 @@
 Revision history for Bencher-Backend
 
+1.029   2016-10-27 (PERLANCAR)
+
+	- Add argument: scenario (to pass scenario data structure).
+
+
 1.028   2016-10-20 (PERLANCAR)
 
         - Do not require Sys::Load on Windows because it doesn't install there.
