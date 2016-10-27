@@ -389,6 +389,8 @@ sub _get_scenario {
         }
         no strict 'refs';
         $scenario = ${"$m\::scenario"};
+    } elsif (defined $pargs->{scenario}) {
+        $scenario = $pargs->{scenario};
     } else {
         $scenario = {
             participants => [],
@@ -2128,6 +2130,9 @@ _
         # XXX note is only relevant when action=bench
         # XXX sort is only relevant when action=bench and format=text
         # XXX include_perls & exclude_perls are only relevant when multiperl=1
+        'choose_one&' => [
+            ['scenario_file', 'scenario_module', 'scenario'],
+        ],
     },
     args => {
         scenario_file => {
@@ -2153,6 +2158,11 @@ _
             schema => ['str*', match=>qr!\A\w+((?:::|/)\w+)*\z!],
             cmdline_aliases => {m=>{}},
             completion => sub { _complete_scenario_module(@_) },
+        },
+        scenario => {
+            summary => 'Load a scenario from data structure',
+            schema => ['hash*'], # XXX bencher::scenario
+            tags => ['hidden-cli'],
         },
         participants => {
             'summary' => 'Add participants',
