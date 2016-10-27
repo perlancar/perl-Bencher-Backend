@@ -2107,6 +2107,21 @@ sub split_result {
     $res;
 }
 
+my $_code_remaining = sub {
+    my ($seen_elems, $elems) = @_;
+    my %seen;
+    for (@$seen_elems) {
+        (my $nodash = $_) =~ s/^-//;
+        $seen{$nodash}++;
+    }
+    my @remaining;
+    for (@$elems) {
+        (my $nodash = $_) =~ s/^-//;
+        push @remaining, $_ unless $seen{$nodash};
+    }
+    \@remaining;
+};
+
 $SPEC{bencher} = {
     v => 1.1,
     summary => 'A benchmark framework',
@@ -2805,9 +2820,44 @@ warning to STDERR and continue.
 _
         },
 
-        sort => {
-            schema => ['array*', of=>['str*'], min_len=>1],
+        sorts => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'sort',
+            schema => ['array*', {
+                of => ['str*'],
+                min_len => 1,
+                'x.perl.coerce_rules' => ['str_comma_sep'],
+            }],
             default => ['-time'],
+            element_completion => sub {
+                require Complete::Util;
+
+                my %args = @_;
+
+                # XXX all result fields are okay
+                my $elems = [map {($_,"-$_")}
+                                 qw/participant rate time errors samples/];
+
+                my $remaining = $_code_remaining->(
+                    $args{parsed_opts}{'--sort'} // [],
+                    $elems,
+                );
+                Complete::Util::complete_array_elem(
+                    word => $args{word},
+                    array => $remaining,
+                );
+            },
+            completion => sub {
+                require Complete::Util;
+                my %args = @_;
+                Complete::Util::complete_comma_sep(
+                    word => $args{word},
+                    # XXX all result fields are okay
+                    elems => [map {($_,"-$_")}
+                                  qw/participant rate time errors samples/],
+                    remaining => $_code_remaining,
+                );
+            },
             tags => ['category:format'],
         },
         scientific_notation => {
@@ -3784,7 +3834,7 @@ sub bencher {
             $envres = [
                 200, "OK",
                 format_result($envres, undef, {
-                    sort => $args{sort},
+                    sort => $args{sorts},
                     scientific_notation => $args{scientific_notation},
                 }),
                 {

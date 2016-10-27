@@ -23,7 +23,7 @@ sub munge_result {
         for my $by0 (@{ $self->{by} }) {
             my ($desc, $by) = $by0 =~ /^(-?)(.+)/;
             return 0 unless defined($a->{$by}) && defined($b->{$by});
-            my $numeric = $by =~ /time|time|errors|samples/ ? 1:0; # XXX ad-hoc
+            my $numeric = $by =~ /time|errors|samples/ ? 1:0; # XXX ad-hoc
             my $res = ($desc ? -1:1) * ($numeric ?
                                             $a->{$by} <=> $b->{$by} :
                                             $a->{$by} cmp $b->{$by});
