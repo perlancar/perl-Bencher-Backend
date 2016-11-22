@@ -3600,10 +3600,16 @@ sub bencher {
                 map {$_=>$args{$_}} grep {!/\A-/} keys %args};
             if ($args{scenario_file}) {
                 $envres->[3]{'func.scenario_file'} = $args{scenario_file};
+                my @st = stat($args{scenario_file});
+                $envres->[3]{'func.scenario_file_mtime'} = $st[9];
             } elsif (my $mod = $args{scenario_module}) {
                 $mod = "Bencher::Scenario::$mod";
                 no strict 'refs';
                 $envres->[3]{'func.scenario_module'} = $mod;
+                (my $mod_pm = "$mod.pm") =~ s!::!/!g;
+                $INC{$mod_pm} or die "BUG: Can't find '$mod_pm' in \%INC";
+                my @st = stat($INC{$mod_pm});
+                $envres->[3]{'func.scenario_module_mtime'} = $st[9];
                 $envres->[3]{'func.module_versions'}{$mod} =
                     ${"$mod\::VERSION"};
             }
