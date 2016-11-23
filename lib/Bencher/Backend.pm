@@ -1772,6 +1772,18 @@ sub _complete_perl {
     );
 }
 
+sub _digest {
+    require File::Digest;
+    my $path = shift;
+    my $digests = {};
+    for my $algo (qw/md5 sha1 sha256/) {
+        my $res = File::Digest::digest_file(file => $path, algorithm=>$algo);
+        next unless $res->[0] == 200;
+        $digests->{$algo} = $res->[2];
+    }
+    $digests;
+}
+
 my $_alias_spec_add_participant = {
     summary => 'Add a participant',
     code => sub {
@@ -3602,6 +3614,10 @@ sub bencher {
                 $envres->[3]{'func.scenario_file'} = $args{scenario_file};
                 my @st = stat($args{scenario_file});
                 $envres->[3]{'func.scenario_file_mtime'} = $st[9];
+                my $digests = _digest($args{scenario_file});
+                $envres->[3]{'func.scenario_file_md5sum'} = $digests->{md5};
+                $envres->[3]{'func.scenario_file_sha1sum'} = $digests->{sha1};
+                $envres->[3]{'func.scenario_file_sha256sum'} = $digests->{sha256};
             } elsif (my $mod = $args{scenario_module}) {
                 $mod = "Bencher::Scenario::$mod";
                 no strict 'refs';
@@ -3610,6 +3626,10 @@ sub bencher {
                 $INC{$mod_pm} or die "BUG: Can't find '$mod_pm' in \%INC";
                 my @st = stat($INC{$mod_pm});
                 $envres->[3]{'func.scenario_module_mtime'} = $st[9];
+                my $digests = _digest($INC{$mod_pm});
+                $envres->[3]{'func.scenario_module_md5sum'} = $digests->{md5};
+                $envres->[3]{'func.scenario_module_sha1sum'} = $digests->{sha1};
+                $envres->[3]{'func.scenario_module_sha256sum'} = $digests->{sha256};
                 $envres->[3]{'func.module_versions'}{$mod} =
                     ${"$mod\::VERSION"};
             }
