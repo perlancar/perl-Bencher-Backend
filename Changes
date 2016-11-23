@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.031   2016-11-23 (PERLANCAR)
+
+        - Record scenario file's mtime and checksums (MD5, SHA1, SHA256) in
+          result metadata.
+
+
 1.030   2016-10-28 (PERLANCAR)
 
 	- [ux] Provide completion for --sort/--sorts.
