@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.032   2016-12-10 (PERLANCAR)
+
+	- Turn on with_process_size by default when in module_startup mode
+	  on linux.
+
+
 1.031   2016-11-23 (PERLANCAR)
 
         - Record scenario file's mtime and checksums (MD5, SHA1, SHA256) in
