@@ -3346,7 +3346,10 @@ sub bencher {
         }
 
         my $with_process_size = $args{with_process_size} //
-            $parsed->{with_process_size};
+            $parsed->{with_process_size} //
+            # turn on with_process_size by default if we are in module_startup
+            # mode on linux
+            ($module_startup && $^O =~ /linux/);
 
         # test code first
         my $test = $args{test} // $parsed->{test} // 1;
