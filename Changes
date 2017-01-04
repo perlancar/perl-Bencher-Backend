@@ -1,5 +1,11 @@
 Revision history for Bencher-Backend
 
+1.033   2017-01-04 (PERLANCAR)
+
+	- [ux] Format numbers etc when output format is /html/, show
+	  platform information when output format is text.
+
+
 1.032   2016-12-10 (PERLANCAR)
 
 	- Turn on with_process_size by default when in module_startup mode
