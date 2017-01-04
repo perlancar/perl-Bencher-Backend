@@ -14,6 +14,15 @@ use List::Util qw(first);
 
 our %SPEC;
 
+sub _ver_or_vers {
+    my $v = shift;
+    if (ref($v) eq 'ARRAY') {
+        return join(", ", @$v);
+    } else {
+        return $v;
+    }
+}
+
 sub _get_tempfile_path {
     my ($filename) = @_;
     state $tempdir = do {
@@ -3002,10 +3011,14 @@ sub bencher {
     my $action = $args{action};
     my $envres;
 
+    my $is_cli_and_can_format_as_table;
     my $is_cli_and_text_format;
     {
         my $r = $args{-cmdline_r};
-        $is_cli_and_text_format = 1 if $r && ($r->{format} // 'text') =~ /text/;
+        $is_cli_and_can_format_as_table = $r &&
+            ($r->{format} // 'text') =~ m!text|html!;
+        $is_cli_and_text_format = $r &&
+            ($r->{format} // 'text') =~ m!text!;
     }
 
     if ($action eq 'list-perls') {
@@ -3280,11 +3293,7 @@ sub bencher {
         my $result_dir = $args{result_dir} // $ENV{BENCHER_RESULT_DIR};
         my $save_result = $args{save_result} // defined($result_dir);
         $result_dir //= $ENV{HOME};
-        my $return_meta = $args{return_meta} // ($save_result ? 1:undef) //
-            (
-                $args{-cmdline_r} && (($args{-cmdline_r}{format}//'') !~ /json/) ?
-                    0 : 1
-                  );
+        my $return_meta = $args{return_meta} // ($save_result ? 1:undef) // 1;
         my $capture_stdout = $args{capture_stdout} // $parsed->{capture_stdout} // 0;
         $capture_stdout = 1 if $action eq 'show-items-outputs';
         my $capture_stderr = $args{capture_stderr} // $parsed->{capture_stderr} // 0;
@@ -3858,18 +3867,29 @@ sub bencher {
 
       FORMAT:
         {
-            last unless $is_cli_and_text_format;
+            last unless $is_cli_and_can_format_as_table;
 
-            $envres = [
-                200, "OK",
-                format_result($envres, undef, {
-                    sort => $args{sorts},
-                    scientific_notation => $args{scientific_notation},
-                }),
-                {
-                    "cmdline.skip_format" => 1,
-                },
-            ];
+            my $fres = format_result($envres, undef, {
+                sort => $args{sorts},
+                scientific_notation => $args{scientific_notation},
+                render_as_text_table => $is_cli_and_text_format,
+            });
+
+            if ($is_cli_and_text_format) {
+                my $num_cores = $envres->[3]{'func.cpu_info'}[0]{number_of_cores};
+                my $platform_info = join(
+                    "",
+                    "Run on: ",
+                    "perl ", _ver_or_vers($envres->[3]{'func.module_versions'}{perl}), ", ",
+                    "CPU ", $envres->[3]{'func.cpu_info'}[0]{name}, " ($num_cores cores), ",
+                    "OS ", $envres->[3]{'func.platform_info'}{osname}, " ", $envres->[3]{'func.platform_info'}{oslabel}, " version ", $envres->[3]{'func.platform_info'}{osvers}, ", ",
+                    "OS kernel: ", $envres->[3]{'func.platform_info'}{kname}, " version ", $envres->[3]{'func.platform_info'}{kvers},
+                );
+                $fres = "# $platform_info\n$fres";
+            }
+
+            $envres = $is_cli_and_text_format ?
+                [200, "OK", $fres, {"cmdline.skip_format" => 1}] : $fres;
         }
 
       RETURN_RESULT:
