@@ -3303,7 +3303,7 @@ sub bencher {
         $envres->[3]{'func.module_versions'}{perl} = "$^V" if $return_meta;
         {
             no strict 'refs';
-            $envres->[3]{'func.module_versions'}{'Bencher::Backend'} = ${__PACKAGE__.'::VERSION'} if $return_meta;
+            $envres->[3]{'func.module_versions'}{__PACKAGE__} = ${__PACKAGE__.'::VERSION'} if $return_meta;
         }
 
         my $code_load = sub {
