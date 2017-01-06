@@ -3885,7 +3885,12 @@ sub bencher {
                     "OS ", $envres->[3]{'func.platform_info'}{osname}, " ", $envres->[3]{'func.platform_info'}{oslabel}, " version ", $envres->[3]{'func.platform_info'}{osvers}, ", ",
                     "OS kernel: ", $envres->[3]{'func.platform_info'}{kname}, " version ", $envres->[3]{'func.platform_info'}{kvers},
                 );
-                $fres = "# $platform_info\n$fres";
+                my $elapsed_info = join(
+                    "",
+                    "Elapsed time: ",
+                    sprintf("%.2fs", $envres->[3]{'func.elapsed_time'}),
+                );
+                $fres = "# $platform_info\n# $elapsed_info\n$fres";
             }
 
             $envres = $is_cli_and_text_format ?
