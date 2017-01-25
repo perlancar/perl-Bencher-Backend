@@ -1,3 +1,14 @@
+1.034   2017-01-25 (PERLANCAR)
+
+	- Introduce participant property: helper_modules (allow specifying
+	  modules that are require for running code but are not subject of
+	  benchmark).
+
+	- Return Bencher::Backend version in result meta.
+
+	- [ux] Show elapsed time when output format is text.
+
+
 1.033   2017-01-04 (PERLANCAR)
 
 	- [ux] Format numbers etc when output format is /html/, show
