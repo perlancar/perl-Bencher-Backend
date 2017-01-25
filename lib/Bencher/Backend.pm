@@ -67,6 +67,9 @@ sub _get_process_size {
         } elsif ($participant->{modules}) {
             print $fh "require $_;\n" for @{ $participant->{modules} };
         }
+        if ($participant->{helper_modules}) {
+            print $fh "require $_;\n" for @{ $participant->{helper_modules} };
+        }
         # XXX should we load extra_modules? i think we should
         print $fh "\n";
 
@@ -676,6 +679,23 @@ sub _get_participant_modules {
     @modules;
 }
 
+sub _get_participant_helper_modules {
+    use experimental 'smartmatch';
+
+    my $parsed = shift;
+
+    my @modules;
+    for my $p (@{ $parsed->{participants} }) {
+        if (defined $p->{helper_modules}) {
+            for (@{ $p->{helper_modules} }) {
+                push @modules, $_ unless $_ ~~ @modules;
+            }
+        }
+    }
+
+    @modules;
+}
+
 sub _get_participant_functions {
     use experimental 'smartmatch';
 
@@ -982,6 +1002,7 @@ sub _gen_items {
             }
 
             my $code;
+            my $code_str;
             my $template_vars;
             if ($p->{type} eq 'command') {
                 require String::ShellQuote;
@@ -1065,7 +1086,7 @@ sub _gen_items {
                 $log->debugf("Item #%d: cmdline=%s", $item_seq, \@cmd);
 
                 {
-                    my $code_str = "package main; sub { ";
+                    $code_str = "package main; sub { ";
                     if (defined $h->{env_hash}) {
                         my $env_hash = $env_hashes->[$h->{env_hash}];
                         for (sort keys %$env_hash) {
@@ -1143,7 +1164,7 @@ sub _gen_items {
                         #warn "Item #$item_seq: participant specifies code_template/fcall_template but there is no args/argv in the dataset #$h->{dataset}\n";
                     }
 
-                    my $code_str = "package main; sub { ";
+                    $code_str = "package main; sub { ";
                     if (defined $h->{env_hash}) {
                         my $env_hash = $env_hashes->[$h->{env_hash}];
                         for (sort keys %$env_hash) {
@@ -1160,6 +1181,7 @@ sub _gen_items {
             }
 
             my $item = {
+                (_code_str => $code_str ) x !!defined($code_str),
                 _code => $code,
                 _permute => $h,
                 _template_vars => $template_vars,
@@ -3272,7 +3294,7 @@ sub bencher {
             "",
             map {(
                 "#", _item_label(item=>$_, bencher_args=>\%args), ":\n",
-                dmp($_->{_code}),
+                $_->{_code_str} // dmp($_->{_code}),
                 "\n\n",
             )} @$items
         )];
@@ -3333,11 +3355,12 @@ sub bencher {
         $code_load->('Sys::Info')             if $return_meta;
         $code_load->('Sys::Load', 'optional') if $return_meta;
 
-        # load all participant modules
+        # load all participant modules & helper modules
         {
             my %seen;
             my @modules = _get_participant_modules($parsed);
-            for my $mod (@modules) {
+            my @helper_modules = _get_participant_helper_modules($parsed);
+            for my $mod (@modules, @helper_modules) {
                 $code_load->($mod);
             }
             for my $mod (keys %{$parsed->{modules}}) {
