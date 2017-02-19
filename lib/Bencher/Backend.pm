@@ -1187,6 +1187,8 @@ sub _gen_items {
                 _template_vars => $template_vars,
                 ((_permute_args => $h_args) x !!$ds->{args}),
             };
+            $item->{p_tags} = join(", ", @{ $p->{tags} // [] });
+            $item->{ds_tags} = join(", ", @{ $ds->{tags} // [] }) if $ds;
             for my $k (keys %$h) {
                 if ($k eq 'perl') {
                     $item->{perl} = $h->{$k};
@@ -1240,7 +1242,7 @@ sub _gen_items {
 
         my @name_keys;
         for my $k (sort keys %{$items->[0]}) {
-            next unless $k =~ /^(participant|dataset|item_.+|arg_.+)$/;
+            next unless $k =~ /^(participant|p_.+|dataset|ds_.+|item_.+|arg_.+)$/;
             next if grep {$k eq $_} @const_cols;
             push @name_keys, $k;
         }
@@ -3808,7 +3810,7 @@ sub bencher {
                 };
 
                 for my $k (sort keys %$it) {
-                    next unless $k =~ /^(seq|participant|dataset|env_hash|perl|modver|item_.+|arg_.+|proc_.+)$/;
+                    next unless $k =~ /^(seq|participant|p_.+|dataset|ds_.+|env_hash|perl|modver|item_.+|arg_.+|proc_.+)$/;
                     unless (grep {$k eq $_} @columns) {
                         push @columns,       $k;
                         push @column_aligns, 'left';

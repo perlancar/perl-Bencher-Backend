@@ -24,7 +24,7 @@ sub munge_result {
         last unless $td->row_count >= 2;
         my @const_cols = $td->const_col_names;
         for my $k (@const_cols) {
-            next unless $k =~ /^(item_.+|arg_.+|perl|modver|participant|dataset)$/;
+            next unless $k =~ /^(item_.+|arg_.+|perl|modver|participant|p_.+|dataset|ds_.+)$/;
             $self->delete_fields($envres, $k);
         }
     }
