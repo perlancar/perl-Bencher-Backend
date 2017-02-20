@@ -1,3 +1,8 @@
+1.036   2017-02-20 (PERLANCAR)
+
+	- [Bugfix] Fix completion of participant & dataset tags.
+
+
 1.035   2017-02-19 (PERLANCAR)
 
 	- Show participant tags (p_tags) & dataset tags (ds_tags) columns
