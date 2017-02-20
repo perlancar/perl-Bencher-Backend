@@ -1532,13 +1532,13 @@ sub _complete_participant_tags_comma_sep {
     my $cmdline = $args{cmdline};
     my $r       = $args{r};
 
-    my $all_participants = _complete_participant(%args, word=>'', apply_filters=>0);
+    my $all_tags = _complete_participant_tag(%args, word=>'', apply_filters=>0);
 
     # at this point Complete::Util is already loaded by _complete_participant
     Complete::Util::hashify_answer(
         Complete::Util::complete_comma_sep(
             word => $word,
-            elems => $all_participants,
+            elems => $all_tags,
             uniq  => 1,
         ),
         {path_sep => ','},
@@ -1663,6 +1663,25 @@ sub _complete_dataset_tag {
     Complete::Util::complete_array_elem(
         word  => $word,
         array => [keys %tags],
+    );
+}
+
+sub _complete_dataset_tags_comma_sep {
+    my %args = @_;
+    my $word    = $args{word} // '';
+    my $cmdline = $args{cmdline};
+    my $r       = $args{r};
+
+    my $all_tags = _complete_dataset_tag(%args, word=>'', apply_filters=>0);
+
+    # at this point Complete::Util is already loaded by _complete_participant
+    Complete::Util::hashify_answer(
+        Complete::Util::complete_comma_sep(
+            word => $word,
+            elems => $all_tags,
+            uniq  => 1,
+        ),
+        {path_sep => ','},
     );
 }
 
