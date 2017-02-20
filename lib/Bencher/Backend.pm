@@ -2234,8 +2234,6 @@ _
         },
         participants => {
             'summary' => 'Add participants',
-            'x.name.is_plural' => 1,
-            'x.name.singular' => 'participant',
             schema => ['array*', of=>['hash*']],
             cmdline_aliases => {
                 participant => $_alias_spec_add_participant,
@@ -2244,8 +2242,6 @@ _
         },
         datasets => {
             summary => 'Add datasets',
-            'x.name.is_plural' => 1,
-            'x.name.singular' => 'dataset',
             schema => ['array*', of=>['hash*']],
             cmdline_aliases => {
                 dataset => $_alias_spec_add_dataset,
@@ -2254,8 +2250,6 @@ _
         },
         env_hashes => {
             summary => 'Add environment hashes',
-            'x.name.is_plural' => 1,
-            'x.name.singular' => 'env_hash',
             schema => ['array*', of=>['hash*']],
             cmdline_aliases => {
                 env_hash => $_alias_spec_add_env_hash,
