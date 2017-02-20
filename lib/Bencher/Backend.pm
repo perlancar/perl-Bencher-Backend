@@ -2441,7 +2441,6 @@ _
 
         include_modules => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_module',
             summary => 'Only include modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2456,7 +2455,6 @@ _
         },
         exclude_modules => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_module',
             summary => 'Exclude modules specified in this list',
             'summary.alt.plurality.singular' => 'Add module to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2485,7 +2483,6 @@ _
 
         include_functions => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_function',
             summary => 'Only include functions specified in this list',
             'summary.alt.plurality.singular' => 'Add function to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2500,7 +2497,6 @@ _
         },
         exclude_functions => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_function',
             summary => 'Exclude functions specified in this list',
             'summary.alt.plurality.singular' => 'Add function to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2516,7 +2512,6 @@ _
 
         include_participants => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_participant',
             summary => 'Only include participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2526,7 +2521,6 @@ _
         },
         include_participant_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_participant_name',
             summary => 'Only include participants whose name matches this',
             'summary.alt.plurality.singular' => 'Add participant (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2536,7 +2530,6 @@ _
         },
         include_participant_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_participant_seq',
             summary => 'Only include participants whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add participant (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2551,7 +2544,6 @@ _
         },
         include_participant_tags => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_participant_tag',
             summary => 'Only include participants whose tag matches this',
             'summary.alt.plurality.singular' => 'Add a tag to participants include tag list',
             description => <<'_',
@@ -2566,7 +2558,6 @@ _
         },
         exclude_participants => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_participant',
             summary => 'Exclude participants whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add participant (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2576,7 +2567,6 @@ _
         },
         exclude_participant_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_participant_name',
             summary => 'Exclude participants whose name matches this',
             'summary.alt.plurality.singular' => 'Add participant (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2586,7 +2576,6 @@ _
         },
         exclude_participant_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_participant_seq',
             summary => 'Exclude participants whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add participant (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2601,7 +2590,6 @@ _
         },
         exclude_participant_tags => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_participant_tag',
             summary => 'Exclude participants whose tag matches this',
             'summary.alt.plurality.singular' => 'Add a tag to participants exclude tag list',
             description => <<'_',
@@ -2617,7 +2605,6 @@ _
 
         include_items => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_item',
             summary => 'Only include items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2627,7 +2614,6 @@ _
         },
         include_item_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_item_name',
             summary => 'Only include items whose name matches this',
             'summary.alt.plurality.singular' => 'Add item (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2637,7 +2623,6 @@ _
         },
         include_item_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_item_seq',
             summary => 'Only include items whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add item (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2652,7 +2637,6 @@ _
         },
         exclude_items => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_item',
             summary => 'Exclude items whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add item (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2662,7 +2646,6 @@ _
         },
         exclude_item_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_item_name',
             summary => 'Exclude items whose name matches this',
             'summary.alt.plurality.singular' => 'Add item (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2672,7 +2655,6 @@ _
         },
         exclude_item_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_item_seq',
             summary => 'Exclude items whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add item (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2688,7 +2670,6 @@ _
 
         include_datasets => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_dataset',
             summary => 'Only include datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2698,7 +2679,6 @@ _
         },
         include_dataset_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_dataset_name',
             summary => 'Only include datasets whose name matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by name) to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2708,7 +2688,6 @@ _
         },
         include_dataset_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_dataset_seq',
             summary => 'Only include datasets whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to include list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2723,7 +2702,6 @@ _
         },
         exclude_datasets => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_dataset',
             summary => 'Exclude datasets whose seq/name matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by name/seq) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2733,7 +2711,6 @@ _
         },
         exclude_dataset_names => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_dataset_name',
             summary => 'Exclude datasets whose name matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by name) to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2743,7 +2720,6 @@ _
         },
         exclude_dataset_seqs => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_dataset_seq',
             summary => 'Exclude datasets whose sequence number matches this',
             'summary.alt.plurality.singular' => 'Add dataset (by sequence number) to exclude list',
             schema => ['array*', of=>['int*', min=>0], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2758,7 +2734,6 @@ _
         },
         include_dataset_tags => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_dataset_tag',
             summary => 'Only include datasets whose tag matches this',
             'summary.alt.plurality.singular' => 'Add a tag to dataset include tag list',
             description => <<'_',
@@ -2773,7 +2748,6 @@ _
         },
         exclude_dataset_tags => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_dataset_tag',
             summary => 'Exclude datasets whose tag matches this',
             'summary.alt.plurality.singular' => 'Add a tag to dataset exclude tag list',
             description => <<'_',
@@ -2808,7 +2782,6 @@ _
         },
         include_perls => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'include_perl',
             summary => 'Only include some perls',
             'summary.alt.plurality.singular' => 'Add specified perl to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
@@ -2817,7 +2790,6 @@ _
         },
         exclude_perls => {
             'x.name.is_plural' => 1,
-            'x.name.singular' => 'exclude_perl',
             summary => 'Exclude some perls',
             'summary.alt.plurality.singular' => 'Add specified perl to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['str_comma_sep']],
