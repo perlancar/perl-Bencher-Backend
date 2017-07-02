@@ -55,7 +55,7 @@ sub _get_process_size {
 
     my $script_path = _get_tempfile_path("get_process_size-$it->{seq}");
 
-    log_debugf("Creating script to measure get process size at %s ...", $script_path);
+    log_debug("Creating script to measure get process size at %s ...", $script_path);
     {
         open my($fh), ">", $script_path or die "Can't open file $script_path: $!";
 
