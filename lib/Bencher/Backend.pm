@@ -2329,6 +2329,8 @@ _
                            show-items-results
                            show-items-results-sizes
                            show-items-outputs
+                           dump-items
+                           dump-parsed-scenario
                            bench
                        /]
                     # list-functions
@@ -2400,6 +2402,16 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a show-items-outputs',
                     code => sub { $_[0]{action} = 'show-items-outputs' },
+                },
+                dump_items => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a dump-items',
+                    code => sub { $_[0]{action} = 'dump-items' },
+                },
+                dump_parsed_scenario => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a dump-parsed-scenario',
+                    code => sub { $_[0]{action} = 'dump-parsed-scenario' },
                 },
             },
             tags => ['category:action'],
@@ -3316,6 +3328,29 @@ sub bencher {
                 "\n\n",
             )} @$items
         )];
+        goto L_END;
+    }
+
+    if ($action eq 'dump-items') {
+        if ($is_cli_and_text_format) {
+            require Data::Dump;
+            $envres = [200, "OK", Data::Dump::dump($items),
+                       {'cmdline.skip_format' => 1}];
+            goto L_END;
+        } else {
+            $envres = [200, "OK", $items];
+        }
+        goto L_END;
+    }
+
+    if ($action eq 'dump-parsed-scenario') {
+        if ($is_cli_and_text_format) {
+            require Data::Dump;
+            $envres = [200, "OK", Data::Dump::dump($parsed),
+                       {'cmdline.skip_format' => 1}];
+        } else {
+            $envres = [200, "OK", $parsed];
+        }
         goto L_END;
     }
 
