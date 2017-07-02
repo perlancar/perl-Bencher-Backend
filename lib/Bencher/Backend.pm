@@ -3361,14 +3361,16 @@ sub bencher {
     }
 
     if ($action eq 'profile') {
+        require File::Temp;
         require Proc::ChildError;
         die "profile currently not yet supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
         my @res;
+        my ($fh, $fname) = File::Temp::tempfile();
         for my $it (@$items) {
             # get participant's module & helper_modules
             my $participant;
             for my $p (@{ $parsed->{participants} }) {
-                if ($p->{_name} eq $it->{participant}) {
+                if ($p->{name} eq $it->{participant}) {
                     $participant = $p;
                     last;
                 }
@@ -3378,15 +3380,21 @@ sub bencher {
             for (@{ $participant->{helper_modules} // [] }) {
                 $mods{$_}++;
             }
+            my $code = $it->{_code_str};
+            # unravel subroutine
+            $code =~ s/.+?sub \{\s*//; $code =~ s/\}\s*\z//;
+            # if start=no, activate profiler
+            $code = "DB::enable_profile(); $code";
             my @cmd = (
                 $^X,
                 "-d:NYTProf",
                 (map {"-m$_"} sort keys %mods),
                 "-e",
-                "DB::enable_profile(); ". $it->{_code_str},
+                $code,
             );
-            my $file = _get_tempfile_path("nytprof$it->{seq}");
+            my $file = "$fname-nytprof$it->{seq}";
             local $ENV{NYTPROF} = "start=no:file=$file.out";
+            #local $ENV{NYTPROF} = "file=$file.out";
             log_debug("Running command: %s ...", \@cmd);
             system @cmd;
             die "Failed running profiler for item #$it->{seq}: ".
@@ -3395,7 +3403,7 @@ sub bencher {
             @cmd = (
                 "nytprofhtml",
                 "-f", "$file.out",
-                "-o", $file,
+                "-o", "$file.dir",
             );
             log_debug("Running command: %s ...", @cmd);
             system @cmd;
@@ -3406,7 +3414,7 @@ sub bencher {
                 seq => $it->{seq},
                 dataset => $it->{dataset},
                 participant => $it->{participant},
-                profile_result_path => "$file/index.html",
+                profile_result_path => "$file.dir/index.html",
             };
         }
         $envres = [200, "OK", \@res, {
