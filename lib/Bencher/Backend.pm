@@ -3417,6 +3417,10 @@ sub bencher {
                 profile_result_path => "$file.dir/index.html",
             };
         }
+        if (@res == 1 && (-t STDOUT)) {
+            require Browser::Open;
+            Browser::Open::open_browser($res[0]{profile_result_path});
+        }
         $envres = [200, "OK", \@res, {
             'table.fields'=>[qw/seq dataset participant profile_result_path/],
         }];
