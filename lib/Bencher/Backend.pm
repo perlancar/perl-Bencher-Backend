@@ -3361,15 +3361,57 @@ sub bencher {
     }
 
     if ($action eq 'profile') {
+        require Proc::ChildError;
         die "profile currently not yet supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+        my @res;
         for my $it (@$items) {
+            # get participant's module & helper_modules
+            my $participant;
+            for my $p (@{ $parsed->{participants} }) {
+                if ($p->{_name} eq $it->{participant}) {
+                    $participant = $p;
+                    last;
+                }
+            }
+            my %mods;
+            $mods{$participant->{module}}++ if $participant->{module};
+            for (@{ $participant->{helper_modules} // [] }) {
+                $mods{$_}++;
+            }
             my @cmd = (
                 $^X,
+                "-d:NYTProf",
+                (map {"-m$_"} sort keys %mods),
                 "-e",
-                $it->{_code_str},
+                "DB::enable_profile(); ". $it->{_code_str},
             );
-            log_debug("Running %s ...", @cmd);
+            my $file = _get_tempfile_path("nytprof$it->{seq}");
+            local $ENV{NYTPROF} = "start=no:file=$file.out";
+            log_debug("Running command: %s ...", \@cmd);
+            system @cmd;
+            die "Failed running profiler for item #$it->{seq}: ".
+                Proc::ChildError::explain_child_error()." (cmd=".
+                      join(" ", @cmd).")" if $?;
+            @cmd = (
+                "nytprofhtml",
+                "-f", "$file.out",
+                "-o", $file,
+            );
+            log_debug("Running command: %s ...", @cmd);
+            system @cmd;
+            die "Failed running profiler for item #$it->{seq}: ".
+                Proc::ChildError::explain_child_error()." (cmd=".
+                      join(" ", @cmd).")" if $?;
+            push @res, {
+                seq => $it->{seq},
+                dataset => $it->{dataset},
+                participant => $it->{participant},
+                profile_result_path => "$file/index.html",
+            };
         }
+        $envres = [200, "OK", \@res, {
+            'table.fields'=>[qw/seq dataset participant profile_result_path/],
+        }];
         goto L_END;
     }
 
