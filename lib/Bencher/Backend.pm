@@ -2331,6 +2331,7 @@ _
                            show-items-outputs
                            dump-items
                            dump-parsed-scenario
+                           profile
                            bench
                        /]
                     # list-functions
@@ -2412,6 +2413,11 @@ _
                     is_flag => 1,
                     summary => 'Shortcut for -a dump-parsed-scenario',
                     code => sub { $_[0]{action} = 'dump-parsed-scenario' },
+                },
+                profile => {
+                    is_flag => 1,
+                    summary => 'Shortcut for -a profile',
+                    code => sub { $_[0]{action} = 'profile' },
                 },
             },
             tags => ['category:action'],
@@ -3350,6 +3356,19 @@ sub bencher {
                        {'cmdline.skip_format' => 1}];
         } else {
             $envres = [200, "OK", $parsed];
+        }
+        goto L_END;
+    }
+
+    if ($action eq 'profile') {
+        die "profile currently not yet supported on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+        for my $it (@$items) {
+            my @cmd = (
+                $^X,
+                "-e",
+                $it->{_code_str},
+            );
+            log_debug("Running %s ...", @cmd);
         }
         goto L_END;
     }
