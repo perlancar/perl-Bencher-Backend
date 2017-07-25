@@ -869,8 +869,6 @@ sub _gen_items {
 
         if (@$paths < 1) {
             return [412, "Can't find module '$pargs->{multimodver}', try adding some --include-path"];
-        } elsif (@$paths == 1) {
-            return [412, "Only found one path for module '$pargs->{multimodver}', try adding some --include-path"];
         }
         for my $path (@$paths) {
             my $v = MM->parse_version($path);
@@ -887,8 +885,6 @@ sub _gen_items {
         }
         return [412, "Can't find version number for module '$pargs->{multimodver}'"]
             unless keys(%versions);
-        return [412, "Only found one version of module '$pargs->{multimodver}', try adding some --include-path"]
-            unless keys(%versions) > 1;
         push @permute, "modver", [keys %versions];
     }
 
