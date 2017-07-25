@@ -3751,6 +3751,8 @@ sub bencher {
 
         # at this point, action = bench
 
+        my $has_isolated_participant = grep { $_->{isolated} } @$participants;
+
         my $precision;
         if ($runner eq 'Benchmark') {
             $precision = $args{precision} // -0.5;
@@ -3785,7 +3787,8 @@ sub bencher {
         }
 
         if ($runner eq 'Benchmark') {
-            die "Bench with Benchmark.pm currently does not support on multiperl or multimodver\n" if $args{multiperl} || $args{multimodver};
+            die "Bench with Benchmark.pm currently does not support on multiperl or multimodver or participant with isolated=>1\n"
+                if $args{multiperl} || $args{multimodver} || $has_isolated_participant;
             my %codes;
             my %legends;
             for my $it (@$items) {
@@ -3864,7 +3867,7 @@ sub bencher {
         my @column_aligns = ('right', 'left', 'left');
         my @rows;
         my %arg_size_columns;
-        if ($args{multiperl} || $args{multimodver}) {
+        if ($args{multiperl} || $args{multimodver} || $has_isolated_participant) {
             require Data::Clone;
             require Devel::Size;
             my %perl_exes;
