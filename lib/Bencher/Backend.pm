@@ -755,7 +755,11 @@ sub _gen_items {
                     name => $key,
                     type => 'command',
                     module => $p0->{module},
-                    perl_cmdline => ["-M$p0->{module}", "-e1"],
+                    (import_args => $p0->{import_args}) x !!defined($p0->{import_args}),
+                    perl_cmdline => ["-M$p0->{module}" . (
+                        defined($p0->{import_args}) ?
+                            "=".(ref($p0->{import_args}) eq 'ARRAY' ? join(",",@{$p0->{import_args}}) : $p0->{import_args}) :
+                                 ''), "-e1"],
                 };
             } elsif (defined $p0->{modules}) {
                 $key = join("+", @{ $p0->{modules} });
@@ -765,7 +769,18 @@ sub _gen_items {
                     name => $key,
                     type => 'command',
                     modules => $p0->{modules},
-                    perl_cmdline => [(map {"-M$_"} @{ $p0->{modules} }), "-e1"],
+                    (import_args_array => $p0->{import_args_array}) x !!defined($p0->{import_args_array}),
+                    perl_cmdline => [do {
+                        my @argv;
+                        my $mods = $p0->{modules};
+                        my $iaa  = $p0->{import_args_array};
+                        for my $i (0..$#{$mods}) {
+                            push @argv, "-M$mods->[$i]" . (
+                                defined($iaa) && defined($iaa->[$i]) ?
+                            "=".(ref($iaa->[$i]) eq 'ARRAY' ? join(",",@{$iaa->[$i]}) : $iaa->[$i]) : '');
+                        }
+                        @argv;
+                    }, "-e1"],
                 };
             }
         }
