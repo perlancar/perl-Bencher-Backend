@@ -3191,7 +3191,7 @@ sub bencher {
             'Bencher::Scenario::', {list_modules=>1, recurse=>1});
         $envres =
             [200, "OK",
-             [map {s/^Bencher::Scenario:://; $_} sort keys %$mods]];
+             [map {(my $tmp = $_) =~ s/^Bencher::Scenario:://; $tmp} sort keys %$mods]];
         goto L_END;
     }
 
