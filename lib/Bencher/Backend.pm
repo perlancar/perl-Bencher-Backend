@@ -756,10 +756,18 @@ sub _gen_items {
                     type => 'command',
                     module => $p0->{module},
                     (import_args => $p0->{import_args}) x !!defined($p0->{import_args}),
-                    perl_cmdline => ["-M$p0->{module}" . (
-                        defined($p0->{import_args}) ?
-                            "=".(ref($p0->{import_args}) eq 'ARRAY' ? join(",",@{$p0->{import_args}}) : $p0->{import_args}) :
-                                 ''), "-e1"],
+                    perl_cmdline => [do {
+                        my $mod = $p0->{module};
+                        my $ia  = $p0->{import_args};
+
+                        if (defined $ia && $ia eq '') {
+                            "-m$mod";
+                        } elsif (defined $ia) {
+                            "-M$mod=".(ref($ia) eq 'ARRAY' ? join(",",@$ia) : $ia);
+                        } else {
+                            "-M$mod";
+                        }
+                    }, "-e1"],
                 };
             } elsif (defined $p0->{modules}) {
                 $key = join("+", @{ $p0->{modules} });
@@ -775,9 +783,15 @@ sub _gen_items {
                         my $mods = $p0->{modules};
                         my $iaa  = $p0->{import_args_array};
                         for my $i (0..$#{$mods}) {
-                            push @argv, "-M$mods->[$i]" . (
-                                defined($iaa) && defined($iaa->[$i]) ?
-                            "=".(ref($iaa->[$i]) eq 'ARRAY' ? join(",",@{$iaa->[$i]}) : $iaa->[$i]) : '');
+                            my $mod = $mods->[$i];
+                            my $ia  = defined $iaa && defined $iaa->[$i] ? $iaa->[$i] : undef;
+                            if (defined $ia && $ia eq '') {
+                                push @argv, "-m$mod";
+                            } elsif (defined $ia) {
+                                push @argv, "-M$mod=".(ref($ia) eq 'ARRAY' ? join(",",@$ia) : $ia);
+                            } else {
+                                push @argv, "-M$mod";
+                            }
                         }
                         @argv;
                     }, "-e1"],
