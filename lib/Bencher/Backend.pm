@@ -1275,7 +1275,7 @@ sub _gen_items {
             }
             if ($ds->{args}) {
                 for my $k (keys %$h_args) {
-                    $item->{"arg_$k"} = $h_args->{$k};
+                    $item->{"arg_$k"} = "$h_args->{$k}";
                 }
             }
 
