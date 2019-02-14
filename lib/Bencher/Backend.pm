@@ -392,7 +392,9 @@ sub _get_scenario {
         $scenario = do $pargs->{scenario_file};
         die "Can't load scenario file '$pargs->{scenario_file}': $@" if $@;
     } elsif (defined $pargs->{scenario_module}) {
-        my $m = "Bencher::Scenario::$pargs->{scenario_module}"; $m =~ s!/!::!g;
+        my $m = $pargs->{scenario_module};
+        $m = "Bencher::Scenario::$m" unless $m =~ /\ABencher::Scenario::/;
+        $m =~ s!/!::!g;
         my $mp = $m; $mp =~ s!::!/!g; $mp .= ".pm";
         {
             local @INC = @INC;
@@ -3860,7 +3862,7 @@ sub bencher {
                 $envres->[3]{'func.scenario_file_sha1sum'} = $digests->{sha1};
                 $envres->[3]{'func.scenario_file_sha256sum'} = $digests->{sha256};
             } elsif (my $mod = $args{scenario_module}) {
-                $mod = "Bencher::Scenario::$mod";
+                $mod = "Bencher::Scenario::$mod" unless $mod =~ /\ABencher::Scenario::/;
                 no strict 'refs';
                 $envres->[3]{'func.scenario_module'} = $mod;
                 (my $mod_pm = "$mod.pm") =~ s!::!/!g;
