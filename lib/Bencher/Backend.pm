@@ -12,6 +12,15 @@ use Data::Dmp;
 use List::MoreUtils qw(all);
 use List::Util qw(first);
 
+use Exporter qw(import);
+our @EXPORT_OK = qw(
+                       bencher
+                       format_result
+                       chart_result
+                       split_result
+                       parse_scenario
+               );
+
 our %SPEC;
 
 sub _ver_or_vers {
