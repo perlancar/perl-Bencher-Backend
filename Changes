@@ -1,3 +1,8 @@
+1.045   2019-10-15  Released-By: PERLANCAR; Urgency: medium
+
+	- Update renamed prereq Data::Clean::JSON -> Data::Clean::ForJSON.
+
+
 1.044   2019-02-24  Released-By: PERLANCAR
 
 	- Support loading scenario from an Acme::CPANModules module (add
