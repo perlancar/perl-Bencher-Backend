@@ -4136,7 +4136,7 @@ sub bencher {
 
         # XXX separate to sub?
         if ($save_result) {
-            require Data::Clean::JSON;
+            require Data::Clean::ForJSON;
             require File::Slurper;
             require JSON::MaybeXS;
             require POSIX;
@@ -4154,7 +4154,7 @@ sub bencher {
                 );
             };
             my $path = "$result_dir/$result_filename";
-            my $cleanser = Data::Clean::JSON->get_cleanser;
+            my $cleanser = Data::Clean::ForJSON->get_cleanser;
             log_trace("Saving result to %s ...", $path);
             File::Slurper::write_text(
                 $path,
