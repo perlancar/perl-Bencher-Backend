@@ -2021,7 +2021,7 @@ sub format_result {
     $opts->{render_as_text_table} //= 1;
 
     $formatters //= [
-        'AddVsSlowestField',
+        'AddComparisonFields',
         'ShowEnv',
         ['Sort', {by=>$opts->{sort}}],
         'ScaleTime',
@@ -2066,6 +2066,8 @@ sub format_result {
         return $fmtobj->render_result($envres);
     }
 
+    die;
+    use DD; dd $envres;
     # no render_result() has been called, we return the envres
     $envres;
 }
@@ -3958,8 +3960,9 @@ sub bencher {
 
         log_trace("Running benchmark (precision=%g) ...", $precision);
 
-        my @columns       = (qw/seq participant dataset/);
-        my @column_aligns = ('right', 'left', 'left');
+        my @columns        = ('seq'  , 'participant', 'dataset');
+        my @column_aligns  = ('right', 'left'       , 'left');
+        my @column_formats = (undef  , undef        , undef);
         my @rows;
         my %arg_size_columns;
         if ($args{multiperl} || $args{multimodver}) {
@@ -4017,12 +4020,14 @@ sub bencher {
                         unless (grep {$_ eq 'perl'} @columns) {
                             push @columns,       "perl";
                             push @column_aligns, 'left';
+                            push @column_formats, undef;
                         }
                         if (length $modver) {
                             $row->{modver} = $modver;
                             unless (grep {$_ eq 'modver'} @columns) {
                                 push @columns,       "modver";
                                 push @column_aligns, "left";
+                                push @column_formats, undef;
                             }
 
                         }
@@ -4083,6 +4088,7 @@ sub bencher {
                     unless (grep {$k eq $_} @columns) {
                         push @columns,       $k;
                         push @column_aligns, 'left';
+                        push @column_formats, undef;
                     }
                     $row->{$k} = $it->{$k};
                 }
@@ -4090,26 +4096,31 @@ sub bencher {
             }
         }
 
-        push @columns,       qw/seq rate time/;
-        push @column_aligns, qw/number number number/;
+        push @columns,       'seq'   , 'rate'  , 'time';
+        push @column_aligns, 'number', 'number', 'number';
+        push @column_formats, undef  , undef   , undef;
 
         if ($with_args_size) {
             for my $col (keys %arg_size_columns) {
                 push @columns,       $col;
                 push @column_aligns, 'number';
+                push @column_formats, undef;
             }
         }
         if ($with_result_size) {
             push @columns,       qw/result_size/;
             push @column_aligns, 'number';
+            push @column_formats, undef;
         }
         # XXX proc_* fields should be put here
-        push @columns      , qw/errors samples notes/;
-        push @column_aligns, 'number', 'number', 'left';
+        push @columns      ,  'errors', 'samples', 'notes';
+        push @column_aligns,  'number', 'number' , 'left';
+        push @column_formats, undef   , undef    , undef;
 
         $envres->[2] = \@rows;
-        $envres->[3]{'table.fields'}       = \@columns;
-        $envres->[3]{'table.field_aligns'} = \@column_aligns;
+        $envres->[3]{'table.fields'}        = \@columns;
+        $envres->[3]{'table.field_aligns'}  = \@column_aligns;
+        $envres->[3]{'table.field_formats'} = \@column_formats;
 
         if (grep { $_->{time} && $_->{time} < 0 } @{ $envres->[2] }) {
             warn "There are some negative time in the results, you might ".
