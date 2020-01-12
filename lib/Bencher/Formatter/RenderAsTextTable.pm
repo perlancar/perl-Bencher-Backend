@@ -20,7 +20,6 @@ sub render_result {
 
     my $rres = ""; # render result
 
-    use DD; dd $envres;
     $rres .= $envres->[3]{'table.title'}.":\n" if $envres->[3]{'table.title'};
     $rres .= Perinci::Result::Format::Lite::format($envres, 'text-pretty');
 

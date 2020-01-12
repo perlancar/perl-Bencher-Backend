@@ -2003,6 +2003,11 @@ $SPEC{format_result} = {
             req => 1,
             pos => 1,
         },
+        exclude_formatters => {
+            'x.name.is_plural' => 1,
+            'x.name.singular' => 'exclude_formatter',
+            summary => 'Exclude Formatters specification',
+        },
         options => {
             'x.name.is_plural' => 1,
             'x.name.singular' => 'option',
@@ -2066,8 +2071,6 @@ sub format_result {
         return $fmtobj->render_result($envres);
     }
 
-    die;
-    use DD; dd $envres;
     # no render_result() has been called, we return the envres
     $envres;
 }
