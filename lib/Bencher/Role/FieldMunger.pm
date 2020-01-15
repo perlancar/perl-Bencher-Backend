@@ -38,7 +38,7 @@ sub add_field {
             $unit = $opts->{unit};
         } elsif ($opts->{unit_of}) {
             for my $i (0..$#{$ff}) {
-                if ($ff->[$i] eq $opts->{unit_of}) {
+                if (($ff->[$i] // '') eq $opts->{unit_of}) {
                     $unit = $fu->[$i];
                     last;
                 }
