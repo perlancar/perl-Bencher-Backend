@@ -3158,8 +3158,7 @@ _
 
         result_dir => {
             summary => 'Directory to use when saving benchmark result',
-            schema => 'str*',
-            'x.schema.entity' => 'dirname',
+            schema => 'dirname*',
             tags => ['category:result'],
             description => <<'_',
 
@@ -3170,8 +3169,7 @@ _
         },
         result_filename => {
             summary => 'Filename to use when saving benchmark result',
-            schema => 'str*',
-            'x.schema.entity' => 'filename',
+            schema => 'filename*',
             tags => ['category:result'],
             description => <<'_',
 
