@@ -2423,6 +2423,9 @@ iterations to do (e.g. 10, or 100). Or, can also be set to a negative number
 When benchmarking with <pm:Benchmark::Dumb::SimpleTime>, this value is a
 positive integer which means the number of iterations to perform.
 
+When profiling, a number greater than 1 will set a repetition loop (e.g. C<<
+for(1..100){ ... } >>).
+
 This setting overrides `default_precision` property in the scenario.
 
 _
@@ -3521,7 +3524,7 @@ sub bencher {
             # unravel subroutine
             $code =~ s/.+?sub \{\s*//; $code =~ s/\}\s*\z//;
             # if start=no, activate profiler
-            $code = "DB::enable_profile(); $code";
+            $code = "DB::enable_profile(); ".($args{precision} > 1 ? "for(1..$args{precision}) { $code }" : $code);;
             my @cmd = (
                 $^X,
                 "-d:NYTProf",
