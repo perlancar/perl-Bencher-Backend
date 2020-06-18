@@ -3869,6 +3869,7 @@ sub bencher {
             }
         } else {
             $precision = $args{precision} //
+                ($module_startup ? $parsed->{module_startup_precision} : undef) //
                 $parsed->{precision} // $parsed->{default_precision} // 0;
             if (defined($args{precision_limit}) && $precision < $args{precision_limit}) {
                 $precision = $args{precision_limit};
