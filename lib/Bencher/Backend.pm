@@ -2364,6 +2364,7 @@ the scenario specification.
 _
             schema => ['str*'],
             cmdline_aliases => {f=>{}},
+            tags => ['category:scenario', 'category:participant'],
         },
         scenario_module => {
             summary => 'Load a scenario from a Bencher::Scenario:: Perl module',
@@ -2377,6 +2378,7 @@ _
             schema => 'perl::modname*',
             cmdline_aliases => {m=>{}},
             completion => sub { _complete_scenario_module(@_) },
+            tags => ['category:scenario', 'category:participant'],
         },
         cpanmodules_module => {
             summary => 'Load a scenario from an Acme::CPANModules:: Perl module',
@@ -2388,11 +2390,13 @@ An <pm:Acme::CPANModules> module can also contain benchmarking information, e.g.
 _
             schema => 'perl::modname*',
             completion => sub { _complete_cpanmodules_module(@_) },
+            tags => ['category:scenario', 'category:participant'],
         },
         scenario => {
             summary => 'Load a scenario from data structure',
             schema => ['hash*'], # XXX bencher::scenario
             tags => ['hidden-cli'],
+            tags => ['category:scenario', 'category:participant'],
         },
         participants => {
             'summary' => 'Add participants',
@@ -2401,6 +2405,7 @@ _
                 participant => $_alias_spec_add_participant,
                 p => $_alias_spec_add_participant,
             },
+            tags => ['category:participant'],
         },
         datasets => {
             summary => 'Add datasets',
@@ -2409,6 +2414,7 @@ _
                 dataset => $_alias_spec_add_dataset,
                 d => $_alias_spec_add_dataset,
             },
+            tags => ['category:dataset'],
         },
         env_hashes => {
             summary => 'Add environment hashes',
@@ -2577,6 +2583,7 @@ When action=show-items-result, will print result as-is instead of dumping as
 Perl.
 
 _
+            tags => ['category:output'],
         },
         test => {
             summary => 'Whether to test participant code once first before benchmarking',
@@ -2600,6 +2607,7 @@ _
             tags => ['category:action'],
         },
         detail => {
+            summary => 'Show detailed information for each result',
             schema => ['bool*'],
             cmdline_aliases => {l=>{}},
         },
@@ -2967,6 +2975,7 @@ Also note that due to the way this is currently implemented, benchmark code that
 contains closures (references to variables outside the code) won't work.
 
 _
+            tags => ['category:multiperl'],
         },
         include_perls => {
             'x.name.is_plural' => 1,
@@ -2974,7 +2983,7 @@ _
             'summary.alt.plurality.singular' => 'Add specified perl to include list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['From_str::comma_sep']],
             element_completion => sub { _complete_perl(@_) },
-            tags => ['category:filtering'],
+            tags => ['category:filtering', 'category:multiperl'],
         },
         exclude_perls => {
             'x.name.is_plural' => 1,
@@ -2982,12 +2991,12 @@ _
             'summary.alt.plurality.singular' => 'Add specified perl to exclude list',
             schema => ['array*', of=>['str*'], 'x.perl.coerce_rules' => ['From_str::comma_sep']],
             element_completion => sub { _complete_perl(@_) },
-            tags => ['category:filtering'],
+            tags => ['category:filtering', 'category:multiperl'],
         },
 
         multimodver => {
             summary => 'Benchmark multiple module versions',
-            schema => ['str*'],
+            schema => ['perl::modname*'],
             description => <<'_',
 
 If set to a module name, will search for all (instead of the first occurrence)
@@ -2997,6 +3006,7 @@ Currently only one module can be multi version.
 
 _
             completion => sub { _complete_participant_module(@_, apply_filters=>0) },
+            tags => ['category:multi-module-version'],
         },
         include_path => {
             summary => 'Additional module search paths',
@@ -3017,6 +3027,7 @@ Used when searching for scenario module, or when in multimodver mode.
 
 _
             cmdline_aliases => {I=>{}},
+            tags => ['category:multi-module-version'],
         },
         # XXX include-mod-version
         # XXX exclude-mod-version
@@ -3088,11 +3099,11 @@ _
                     remaining => $_code_remaining,
                 );
             },
-            tags => ['category:format'],
+            tags => ['category:output'],
         },
         scientific_notation => {
             schema => ['bool', is=>1],
-            tags => ['category:format'],
+            tags => ['category:output'],
         },
 
         with_result_size => {
@@ -3118,10 +3129,12 @@ _
         capture_stdout => {
             summary => 'Trap output to stdout',
             schema => 'bool',
+            tags => ['category:output'],
         },
         capture_stderr => {
             summary => 'Trap output to stderr',
             schema => 'bool',
+            tags => ['category:output'],
         },
 
         with_process_size => {
@@ -3154,7 +3167,7 @@ is text (where the extra metadata is not shown).
 
 _
             schema => ['bool'],
-            tags => ['category:result'],
+            tags => ['category:output'],
         },
 
         save_result => {
@@ -3176,7 +3189,7 @@ _
         result_dir => {
             summary => 'Directory to use when saving benchmark result',
             schema => 'dirname*',
-            tags => ['category:result'],
+            tags => ['category:output'],
             description => <<'_',
 
 Default is from `BENCHER_RESULT_DIR` environment variable, or the home
@@ -3187,7 +3200,7 @@ _
         result_filename => {
             summary => 'Filename to use when saving benchmark result',
             schema => 'filename*',
-            tags => ['category:result'],
+            tags => ['category:output'],
             description => <<'_',
 
 Default is:
@@ -3212,7 +3225,7 @@ _
         note => {
             summary => 'Put additional note in the result',
             schema => ['str*'],
-            tags => ['category:result'],
+            tags => ['category:output'],
         },
         tidy => {
             summary => 'Run perltidy over generated scripts',
