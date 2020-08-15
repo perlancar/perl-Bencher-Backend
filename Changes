@@ -1,3 +1,10 @@
+1.050   2020-08-15  Released-By: PERLANCAR; Urgency: medium
+
+	- Add bencher options: tidy, keep_tempdir.
+
+	- [Rinci metadata] Tweak argument categories.
+
+
 1.049   2020-05-10  Released-By: PERLANCAR; Urgency: medium
 
 	- When profiling, observe --precision to set a repetition loop.
