@@ -35,12 +35,25 @@ sub _ver_or_vers {
 }
 
 sub _get_tempfile_path {
-    my ($filename) = @_;
+    my ($args, $filename) = @_;
     state $tempdir = do {
         require File::Temp;
-        File::Temp::tempdir(CLEANUP => log_is_debug() ? 0:1);
+        File::Temp::tempdir(CLEANUP => $args->{keep_tempdir} || log_is_debug() ? 0:1);
     };
     "$tempdir/$filename";
+}
+
+sub _maybe_tidy_script {
+    require IPC::System::Options;
+
+    my ($args, $path) = @_;
+    return unless $args->{tidy};
+    my $rand = int(1_000_000*rand());
+    rename $path, "$path.$rand" or die "Can't rename $path -> $path.$rand: $!";
+    IPC::System::Options::system(
+        {log=>1, die=>1},
+        "perltidy", "$path.$rand", "-o", $path,
+    );
 }
 
 sub _fill_template {
@@ -62,9 +75,9 @@ sub _fill_template {
 }
 
 sub _get_process_size {
-    my ($parsed, $it) = @_;
+    my ($args, $parsed, $it) = @_;
 
-    my $script_path = _get_tempfile_path("get_process_size-$it->{seq}");
+    my $script_path = _get_tempfile_path($args, "get_process_size-$it->{seq}");
 
     log_debug("Creating script to measure get process size at %s ...", $script_path);
     {
@@ -101,6 +114,7 @@ sub _get_process_size {
         print $fh "\n";
 
         close $fh or die "Can't write to $script_path: $!";
+        _maybe_tidy_script($args, $script_path);
     }
 
     # run the script
@@ -3200,6 +3214,16 @@ _
             schema => ['str*'],
             tags => ['category:result'],
         },
+        tidy => {
+            summary => 'Run perltidy over generated scripts',
+            schema => 'bool*',
+            tags => ['category:debugging'],
+        },
+        keep_tempdir => {
+            summary => 'Do not cleanup temporary directory when bencher ends',
+            schema => 'bool*',
+            tags => ['category:debugging'],
+        },
     },
 };
 sub bencher {
@@ -3774,7 +3798,7 @@ sub bencher {
                 }
 
                 if ($with_process_size) {
-                    _get_process_size($parsed, $it);
+                    _get_process_size(\%args, $parsed, $it);
                 }
 
                 push @$fitems, $it;
@@ -3988,7 +4012,7 @@ sub bencher {
             my %item_mems; # key = item seq
             for my $perl (sort keys %perl_exes) {
                 for my $modver (sort keys %perl_opts) {
-                    my $scd_path = _get_tempfile_path("scenario-$perl");
+                    my $scd_path = _get_tempfile_path(\%args, "scenario-$perl");
                     $sc->{items} = [];
                     for my $it (@$items) {
                         next unless $it->{perl} eq $perl;
@@ -4002,7 +4026,8 @@ sub bencher {
                     open my($fh), ">", $scd_path or die "Can't open file $scd_path: $!";
                     print $fh dmp($sc), ";\n";
                     close $fh;
-                    my $res_path = _get_tempfile_path("benchresult-$perl");
+                    _maybe_tidy_script(\%args, $scd_path);
+                    my $res_path = _get_tempfile_path(\%args, "benchresult-$perl");
                     my $cmd = join(
                         " ",
                         $perl_exes{$perl},
