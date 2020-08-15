@@ -3032,6 +3032,36 @@ _
         # XXX include-mod-version
         # XXX exclude-mod-version
 
+
+#         code_before => {
+#             summary => 'Run perl code when running in multiperl or multi-module-version mode',
+#             schema => ['array*', of=>'str*'],
+#             description => <<'_',
+
+# Due to the way multiperl (`--multiperl`) and multi-module-version
+# (`--multimodver`) modes are currently implemented, code templates of the
+# participants are first turned into coderefs then dumped into a temporary script.
+# Each benchmark item is then run by a separate perl process.
+
+# The dumped coderef code might lack e.g. the original `use` statement or code in
+# BEGIN block. For example:
+
+#     code_template => q(use MyMod '$foo'; $foo->bar() for 1..1000),
+
+# when the code template is turned into coderef and dumped:
+
+#     code => sub { $main::foo->bar() for 1..1000 },
+
+# This is where this option can be used to work around this current limitation. In
+# this case, we can add:
+
+#     code_before => 'use Progress::Any q($progress)',
+
+# _
+#             tags => ['category:multiperl', 'category:multi-module-version'],
+#         },
+
+
         on_failure => {
             summary => "What to do when there is a failure",
             schema => ['str*', in=>[qw/die skip/]],
