@@ -3,7 +3,7 @@
         - Merge two releases 1.050 and 1.050.1.
 
 
-1.050.1  2020-08-15  Released-By: PERLANCAR; Urgency: medium
+1.050.1 2020-08-15  Released-By: PERLANCAR; Urgency: medium; Status: Cancelled
 
 	- Add bencher options: tidy, keep_tempdir.
 
