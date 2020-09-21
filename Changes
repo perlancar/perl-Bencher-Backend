@@ -1,3 +1,12 @@
+1.052   2020-09-21  Released-By: PERLANCAR; Urgency: medium
+
+	- Improve multimodver/multiperl mode: Do not dump _code (coderef),
+	  but reconstruct from _code_str instead.
+
+        - Allow participant that does not mention module to be permuted in
+          multimodver mode.
+
+
 1.051   2020-08-16  Released-By: PERLANCAR; Urgency: high
 
         - Merge two releases 1.050 and 1.050.1.
