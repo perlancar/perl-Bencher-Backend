@@ -1,6 +1,8 @@
 package Bencher::Scenario::Example::CommandNotFound;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 our $scenario = {

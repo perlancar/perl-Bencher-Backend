@@ -1,6 +1,8 @@
 package Bencher::Formatter::ScaleSize;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 use 5.010001;

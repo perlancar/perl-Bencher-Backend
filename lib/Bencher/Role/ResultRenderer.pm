@@ -1,6 +1,8 @@
 package Bencher::Role::ResultRenderer;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 use 5.010;

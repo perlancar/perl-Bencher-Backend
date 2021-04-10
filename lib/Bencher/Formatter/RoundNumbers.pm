@@ -1,6 +1,8 @@
 package Bencher::Formatter::RoundNumbers;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 use 5.010001;

@@ -1,6 +1,8 @@
 package Bencher::Scenario::Example::CmdLineTemplate;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 our $scenario = {

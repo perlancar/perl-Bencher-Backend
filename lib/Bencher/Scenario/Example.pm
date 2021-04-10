@@ -1,6 +1,8 @@
 package Bencher::Scenario::Example;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 our $scenario = {

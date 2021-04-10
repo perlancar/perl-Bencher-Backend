@@ -1,6 +1,8 @@
 package Bencher::Scenario::Example::MultipleArgValues::Hash;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 our $scenario = {

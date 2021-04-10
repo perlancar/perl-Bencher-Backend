@@ -660,8 +660,8 @@ sub _parse_scenario {
             unless (defined($ds->{name})) {
                 unless ($td_args) {
                     if (all {$_->{args}} @$dss0) {
-                        require TableData::Object::aohos;
-                        $td_args = TableData::Object::aohos->new(
+                        require Data::TableData::Object::aohos;
+                        $td_args = Data::TableData::Object::aohos->new(
                             [map {$_->{args}} @$dss0]);
                         @uniq_args = $td_args->uniq_col_names;
                     } else {
@@ -1326,8 +1326,8 @@ sub _gen_items {
     # permutation (unnecessarily unique, just as a human-readable name)
     {
         last unless @$items;
-        require TableData::Object::aohos;
-        my $td = TableData::Object::aohos->new($items);
+        require Data::TableData::Object::aohos;
+        my $td = Data::TableData::Object::aohos->new($items);
         my @const_cols = $td->const_col_names;
 
         my @name_keys;
