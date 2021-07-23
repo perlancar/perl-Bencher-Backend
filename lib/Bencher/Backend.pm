@@ -1322,40 +1322,7 @@ sub _gen_items {
 
     } # ITER
 
-    # give each item a convenient name, which is a short combination of its
-    # permutation (unnecessarily unique, just as a human-readable name)
-    {
-        last unless @$items;
-        require Data::TableData::Object::aohos;
-        my $td = Data::TableData::Object::aohos->new($items);
-        my @const_cols = $td->const_col_names;
-
-        my @name_keys;
-        for my $k (sort keys %{$items->[0]}) {
-            next unless $k =~ /^(participant|p_.+|dataset|ds_.+|item_.+|arg_.+)$/;
-            next if grep {$k eq $_} @const_cols;
-            push @name_keys, $k;
-        }
-
-        require Sort::BySpec;
-        my $sorter = Sort::BySpec::sort_by_spec(spec=>['participant', qr/^p_/, 'dataset', qr/^ds_/, qr/^item_/, qr/^arg_/]);
-        my @sorted_name_keys = $sorter->(@name_keys);
-
-        my $succinct_participant_names;
-        if (grep { $_ eq 'participant' } @name_keys) {
-            $succinct_participant_names = _compact_participant_names({req_uniq => @name_keys == 1 ? 1:0}, map { $_->{participant} } @$items);
-        }
-
-        for my $it (@$items) {
-            $it->{_name} = join(" ", map {"$_=".($it->{$_} // "(undef)")}
-                                    @name_keys);
-            # _succinct_name is for e.g. showing Benchmark.pm result where the
-            # items' names are all shown together horizontally as columns, so
-            # the names need to be shorter to avoid being visually overwhelming
-            $it->{_succinct_name} = join(" ", map {($_ eq 'participant' ? $succinct_participant_names->{ $it->{$_} } : ($it->{$_} // "(undef)"))}
-                                             @sorted_name_keys);
-        }
-    }
+    _set_item_names($items);
 
     $items = _filter_records(
         entity => 'item',
@@ -1962,6 +1929,45 @@ sub _digest {
     $digests;
 }
 
+
+    # give each item a convenient name, which is a short combination of its
+    # permutation (unnecessarily unique, just as a human-readable name)
+sub _set_item_names {
+    my $items = shift;
+
+    return unless @$items;
+
+    require Data::TableData::Object::aohos;
+    my $td = Data::TableData::Object::aohos->new($items);
+    my @const_cols = $td->const_col_names;
+
+    my @name_keys;
+    for my $k (sort keys %{$items->[0]}) {
+        next unless $k =~ /^(participant|p_.+|dataset|ds_.+|item_.+|arg_.+)$/;
+        next if grep {$k eq $_} @const_cols;
+        push @name_keys, $k;
+    }
+
+    require Sort::BySpec;
+    my $sorter = Sort::BySpec::sort_by_spec(spec=>['participant', qr/^p_/, 'dataset', qr/^ds_/, qr/^item_/, qr/^arg_/]);
+    my @sorted_name_keys = $sorter->(@name_keys);
+
+    my $succinct_participant_names;
+    if (grep { $_ eq 'participant' } @name_keys) {
+        $succinct_participant_names = _compact_participant_names({req_uniq => @name_keys == 1 ? 1:0}, map { $_->{participant} } @$items);
+    }
+
+    for my $it (@$items) {
+        $it->{_name} = join(" ", map {"$_=".($it->{$_} // "(undef)")}
+                                @name_keys);
+        # _succinct_name is for e.g. showing Benchmark.pm result where the
+        # items' names are all shown together horizontally as columns, so
+        # the names need to be shorter to avoid being visually overwhelming
+        $it->{_succinct_name} = join(" ", map {($_ eq 'participant' ? $succinct_participant_names->{ $it->{$_} } : ($it->{$_} // "(undef)"))}
+                                         @sorted_name_keys);
+    }
+}
+
 sub _compact_participant_names {
     require List::Util;
     require List::Util::Uniq;
@@ -2094,7 +2100,9 @@ sub format_result {
     my ($envres, $formatters, $opts) = @_;
 
     $opts //= {};
-    $opts->{render_as_text_table} //= 1;
+    # XXX exclusive choices
+    $opts->{render_as_benchmark_pm} //= 0;
+    $opts->{render_as_text_table}   //= $opts->{render_as_benchmark_pm} ? 0:1;
 
     $formatters //= [
         'AddComparisonFields',
@@ -2111,6 +2119,7 @@ sub format_result {
         'DeleteSeqField',
 
         ('RenderAsTextTable') x !!$opts->{render_as_text_table},
+        ('RenderAsBenchmarkPm') x !!$opts->{render_as_benchmark_pm},
     ];
 
     # load all formatter modules
