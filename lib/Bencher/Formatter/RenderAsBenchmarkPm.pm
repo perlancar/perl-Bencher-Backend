@@ -41,7 +41,7 @@ sub render_result {
         my $it = $items->[$i];
         push @rows, [
             $it->{_succinct_name},
-            defined($it->{rate}) ? "$it->{rate}/s" : sprintf("$it->{rate}/s",
+            (defined($it->{rate}) ? "$it->{rate}/s" : sprintf("%.1f/s", 1/$it->{rate})),
         ];
         for my $j (0..$#{$items}) {
             my $pct;
