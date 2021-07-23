@@ -1337,9 +1337,23 @@ sub _gen_items {
             push @name_keys, $k;
         }
 
+        require Sort::BySpec;
+        my $sorter = Sort::BySpec::sort_by_spec(spec=>['participant', qr/^p_/, 'dataset', qr/^ds_/, qr/^item_/, qr/^arg_/]);
+        my @sorted_name_keys = $sorter->(@name_keys);
+
+        my $succinct_participant_names;
+        if (grep { $_ eq 'participant' } @name_keys) {
+            $succinct_participant_names = _compact_participant_names(map { $_->{participant} } @$items);
+        }
+
         for my $it (@$items) {
             $it->{_name} = join(" ", map {"$_=".($it->{$_} // "(undef)")}
                                     @name_keys);
+            # _succinct_name is for e.g. showing Benchmark.pm result where the
+            # items' names are all shown together horizontally as columns, so
+            # the names need to be shorter to avoid being visually overwhelming
+            $it->{_succinct_name} = join(" ", map {($_ eq 'participant' ? $succinct_participant_names->{ $it->{$_} } : ($it->{$_} // "(undef)"))}
+                                             @sorted_name_keys);
         }
     }
 
@@ -1946,6 +1960,53 @@ sub _digest {
         $digests->{$algo} = $res->[2];
     }
     $digests;
+}
+
+sub _compact_participant_names {
+    require List::Util;
+    require List::Util::Uniq;
+
+    my @names = @_;
+
+    my %res = map {$_=>$_} @names;
+    goto RETURN_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
+
+    # assume Foo::Bar::baz form to be (module + func). otherwise we assume the
+    # whole name is func.
+    my (@prefixes, @funcs);
+    for my $name (@names) {
+        if ($name =~ /\A((?:\w+::)*)(\w+)\z/) {
+            push @prefixes, $1;
+            push @funcs, $2;
+        } else {
+            push @prefixes, '';
+            push @funcs, $name;
+        }
+    }
+
+    if (List::Util::Uniq::is_monovalued(@prefixes)) {
+        @prefixes = (('') x @prefixes);
+        goto FORM_RESULT if List::Util::max(map {length} @funcs) <= 12;
+    } else {
+        # XXX find unique parts, e.g. Foo::Bar & Foo::Baz -> FBr & FBz or
+        # something like this. currently we return FB & FB.
+        for (@prefixes) {
+            s/(.)[^:]*::/$1/g;
+            $_ = "$_:";
+        }
+    }
+
+    # XXX find unique parts, e.g. foo_bar & foo_baz -> f_bar, f_baz. currently
+    # we return f_b.
+    for (@funcs) {
+        s/(\S)\S*?(_|\z)/$1$2/g;
+    }
+
+  FORM_RESULT:
+    %res = map { $names[$_] => $prefixes[$_] . $funcs[$_] } 0 .. $#names;
+
+  RETURN_RESULT:
+    return \%res;
 }
 
 my $_alias_spec_add_participant = {
@@ -3946,7 +4007,7 @@ sub bencher {
             my %codes;
             my %legends;
             for my $it (@$items) {
-                my $key = $it->{_name};
+                my $key = $it->{_succinct_name};
                 if (!length($key)) {
                     $key = $it->{seq};
                 }
