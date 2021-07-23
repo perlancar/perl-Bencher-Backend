@@ -45,16 +45,19 @@ sub render_result {
         ];
         for my $j (0..$#{$items}) {
             my $pct;
-            if ($i != $j) {
-                if ($items->[$j]{rate} > $it->{rate}) {
+            if ($i == $j) {
+                $pct = "--";
+            } else {
+                if ($items->[$j]{time} < $it->{time}) {
                     # item i is slower than item j by N percent
-                    $pct = -(1 - $items->[$i]{rate} / $items->[$j]{rate}) * 100;
+                    $pct = -(1 - $items->[$j]{time} / $it->{time}) * 100;
                 } else {
                     # item i is faster than item j by N percent
-                    $pct = ($it->{rate} / $items->[$j]{rate} -1) * 100;
+                    $pct = ($items->[$j]{time} / $it->{time} -1) * 100;
                 }
+                $pct = sprintf("%d%%", $pct);
             }
-            push @{ $rows[-1] }, $i==$j ? "--" : sprintf("%d%%", $pct);
+            push @{ $rows[-1] }, $pct;
         }
     }
 
