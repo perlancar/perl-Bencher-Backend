@@ -2204,7 +2204,6 @@ _
 };
 sub chart_result {
     require Chart::Gnuplot;
-    require Package::Abbreviate;
 
     my %args = @_;
 
