@@ -1343,7 +1343,7 @@ sub _gen_items {
 
         my $succinct_participant_names;
         if (grep { $_ eq 'participant' } @name_keys) {
-            $succinct_participant_names = _compact_participant_names(map { $_->{participant} } @$items);
+            $succinct_participant_names = _compact_participant_names({req_uniq => @name_keys == 1 ? 1:0}, map { $_->{participant} } @$items);
         }
 
         for my $it (@$items) {
@@ -1966,9 +1966,9 @@ sub _compact_participant_names {
     require List::Util;
     require List::Util::Uniq;
 
-    my @names = @_;
+    my ($opts, @names) = @_;
 
-    my %res = map {$_=>$_} @names;
+    my %res;
     goto RETURN_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
 
     # assume Foo::Bar::baz form to be (module + func). otherwise we assume the
@@ -2003,7 +2003,16 @@ sub _compact_participant_names {
     }
 
   FORM_RESULT:
-    %res = map { $names[$_] => $prefixes[$_] . $funcs[$_] } 0 .. $#names;
+    my @new_names = map { $prefixes[$_] . $funcs[$_] } 0..$#names;
+    if ($opts->{req_uniq}) {
+        goto UNCOMPACTED_RESULT unless List::Util::Uniq::is_uniq(@new_names);
+    }
+    %res = map { $names[$_] => $new_names[$_] } 0 .. $#names;
+    goto RETURN_RESULT;
+
+  UNCOMPACTED_RESULT:
+    %res = map {$_=>$_} @names;
+    goto RETURN_RESULT;
 
   RETURN_RESULT:
     return \%res;
