@@ -4108,7 +4108,7 @@ sub bencher {
                 Data::Clone::clone($parsed->{env_hashes});
         }
 
-        log_trace("Running benchmark with Benchmark::Dumb (precision=%g) ...", $precision);
+        log_trace("Running benchmark with $runner (precision=%g) ...", $precision);
 
         my @columns        = ('seq'  , 'participant', 'dataset');
         my @column_aligns  = ('right', 'left'       , 'left');
