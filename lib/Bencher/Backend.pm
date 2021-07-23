@@ -3960,6 +3960,7 @@ sub bencher {
                             sort keys %$it
                         );
             }
+            log_trace "Running benchmark with Benchmark.pm ...";
             my ($stdout, @res) = &Capture::Tiny::capture_stdout(
                 sub {
                     Benchmark::cmpthese($precision, \%codes);
@@ -4028,7 +4029,7 @@ sub bencher {
                 Data::Clone::clone($parsed->{env_hashes});
         }
 
-        log_trace("Running benchmark (precision=%g) ...", $precision);
+        log_trace("Running benchmark with Benchmark::Dumb (precision=%g) ...", $precision);
 
         my @columns        = ('seq'  , 'participant', 'dataset');
         my @column_aligns  = ('right', 'left'       , 'left');
