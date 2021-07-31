@@ -1998,13 +1998,14 @@ sub _compact_participant_names {
         # something like this. currently we return FB & FB.
         for (@prefixes) {
             s/(.)[^:]*::/$1/g;
-            $_ = "$_:";
+            $_ = "$_:" if length;
         }
     }
 
     # XXX find unique parts, e.g. foo_bar & foo_baz -> f_bar, f_baz. currently
     # we return f_b.
     for (@funcs) {
+        next if / /; # probably not a function name, don't compact
         s/(\S)\S*?(_|\z)/$1$2/g;
     }
 
