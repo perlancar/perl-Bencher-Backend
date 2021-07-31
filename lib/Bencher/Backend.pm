@@ -3530,7 +3530,9 @@ sub bencher {
         my @columns;
         for my $it0 (@$items) {
             my $it = {%$it0};
-            delete $it->{$_} for grep {/^_/} keys %$it;
+            for (grep {/^_/} keys %$it) {
+                delete $it->{$_} unless /^_succinct_name/;
+            }
             if (!@columns) {
                 push @columns, sort keys %$it;
             }
