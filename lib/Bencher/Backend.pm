@@ -1975,7 +1975,7 @@ sub _compact_participant_names {
     my ($opts, @names) = @_;
 
     my %res;
-    goto RETURN_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
+    goto UNCOMPACTED_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
 
     # assume Foo::Bar::baz form to be (module + func). otherwise we assume the
     # whole name is func.
