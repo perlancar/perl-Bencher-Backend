@@ -1,3 +1,10 @@
+1.059   2021-07-31  Released-By: PERLANCAR; Urgency: medium
+
+	- [bugfix] Fix goto bug that caused empty item names.
+
+	- [action list-items] Show _succinct_name for debugging.
+
+
 1.058   2021-07-31  Released-By: PERLANCAR; Urgency: medium
 
 	- [bugfix] When rendering result as Benchmark.pm result, fix
