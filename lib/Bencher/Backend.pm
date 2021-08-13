@@ -3317,7 +3317,11 @@ module. The `::` (double colon in the module name will be replaced with `-`
 
 _
         },
-
+        render_as_benchmark_pm => {
+            summary => 'Format result like Benchmark.pm',
+            schema => 'true*',
+            tags => ['category:output'],
+        },
         note => {
             summary => 'Put additional note in the result',
             schema => ['str*'],
@@ -4338,7 +4342,8 @@ sub bencher {
             my $fres = format_result($envres, undef, {
                 sort => $args{sorts},
                 scientific_notation => $args{scientific_notation},
-                render_as_text_table => $is_cli_and_text_format,
+                render_as_benchmark_pm => $args{render_as_benchmark_pm},
+                render_as_text_table => $is_cli_and_text_format && !$args{render_as_benchmark_pm},
             });
 
             if ($is_cli_and_text_format) {
