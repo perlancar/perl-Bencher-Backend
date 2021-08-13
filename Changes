@@ -1,3 +1,8 @@
+1.056   2021-08-13  Released-By: PERLANCAR; Urgency: medium
+
+	- [ux] Add option --render-as-benchmark-pm.
+
+
 1.055   2021-07-23  Released-By: PERLANCAR; Urgency: medium
 
 	- Add new renderer formatter: RenderAsBenchmarkPm.
