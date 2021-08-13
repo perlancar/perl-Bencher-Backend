@@ -1975,7 +1975,7 @@ sub _compact_participant_names {
     my ($opts, @names) = @_;
 
     my %res;
-    goto RETURN_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
+    goto UNCOMPACTED_RESULT if (List::Util::max(map { length } @names) // 0) <= 12;
 
     # assume Foo::Bar::baz form to be (module + func). otherwise we assume the
     # whole name is func.
@@ -1998,13 +1998,14 @@ sub _compact_participant_names {
         # something like this. currently we return FB & FB.
         for (@prefixes) {
             s/(.)[^:]*::/$1/g;
-            $_ = "$_:";
+            $_ = "$_:" if length;
         }
     }
 
     # XXX find unique parts, e.g. foo_bar & foo_baz -> f_bar, f_baz. currently
     # we return f_b.
     for (@funcs) {
+        next if / /; # probably not a function name, don't compact
         s/(\S)\S*?(_|\z)/$1$2/g;
     }
 
@@ -2204,93 +2205,41 @@ _
 };
 sub chart_result {
     require Chart::Gnuplot;
-    require Package::Abbreviate;
 
     my %args = @_;
 
     return [412, "Output file already exists, use overwrite=1 if you want to ".
                 "overwrite the file"]
         if (-f $args{output_file}) && !$args{overwrite};
-
+    return [412, "Result has no items, can't chart"] unless @{$args{envres}[2]};
     my $envres = format_result($args{envres}, undef, {render_as_text_table=>0});
-    return [412, "No permute information in the result"]
-        unless $envres->[3]{'func.permute'};
-    my %permute = @{ $envres->[3]{'func.permute'} };
-    my $num_different = 0;
-    for (sort keys %permute) {
-        if (@{ $permute{$_} } > 1) {
-            $num_different++;
-        } else {
-            delete $permute{$_};
-        }
-    }
-    return [412, "Result needs to have 1-2 permutations of different items ".
-                "to be charted"]
-        unless $num_different >= 1 && $num_different <= 2;
-    my @permute = sort keys %permute;
-
+    _set_item_names($envres->[2]);
     my $data = $envres->[3]{'func.module_startup'} || $envres->[3]{'func.code_startup'} ? "time" : "rate";
 
     my $chart = Chart::Gnuplot->new(
         #imagesize => "0.5, 0.5",
         output => $args{output_file},
-        title  => $args{title} // 'Benchmark result',
+        title  => $args{title} // 'Benchmark result'.($data eq 'rate' ? " (higher is better)" : "(shorter is better)"),
         ylabel => $data,
         xlabel => "",
+        xtics  => {rotate=>"30 right"},
     );
 
-    my @chart_datasets;
-
-    if (@permute == 1) {
-        my (@ydata, @xdata);
-        for my $it (@{ $envres->[2] }) {
-            push @ydata, $it->{$data};
-            my $xdata = $it->{$permute[0]};
-            if ($permute[0] eq 'participant' && $xdata =~ /\A\w+(::\w+)+\z/) {
-                $xdata = Package::Abbreviate->new(10, {eager=>1})->abbr($xdata);
-            }
-            push @xdata, $xdata;
-        }
-        my $ds = Chart::Gnuplot::DataSet->new(
-            ydata  => \@ydata,
-            xdata  => \@xdata,
-            title  => _esc_gnuplot_title($permute[0]),
-            border => undef,
-            fill   => {}, # XXX color doesn't affect, on my PC?
-            style  => "histograms",
-        );
-        push @chart_datasets, $ds;
-    } elsif (@permute == 2) {
-        my %p1_values;
-        for my $it (@{ $envres->[2] }) {
-            $p1_values{ $it->{$permute[1]} }++;
-        }
-        for my $p1 (sort keys %p1_values) {
-            my (@ydata, @xdata);
-            for my $it (@{ $envres->[2] }) {
-                next unless $it->{ $permute[1] } eq $p1;
-                push @ydata, $it->{$data};
-                push @xdata, $it->{$permute[0]};
-            }
-            my $title;
-            if ($permute[1] eq 'participant' && $p1 =~ /\A\w+(::\w+)+\z/) {
-                $title = Package::Abbreviate->new(10, {eager=>1})->abbr($p1);
-            } else {
-                $title = $p1;
-            }
-
-            my $ds = Chart::Gnuplot::DataSet->new(
-                ydata  => \@ydata,
-                xdata  => \@xdata,
-                title  => _esc_gnuplot_title($title),
-                border => undef,
-                fill   => {}, # XXX color doesn't affect, on my PC?
-                style  => "histograms",
-            );
-            push @chart_datasets, $ds;
-        }
+    my (@ydata, @xdata);
+    for my $it (@{ $envres->[2] }) {
+        push @xdata, _esc_gnuplot_title($it->{_succinct_name});
+        push @ydata, $it->{$data};
     }
-
+    my @chart_datasets;
+    my $ds = Chart::Gnuplot::DataSet->new(
+        ydata  => \@ydata,
+        xdata  => \@xdata,
+        title  => "",
+        border => undef,
+        fill   => {}, # XXX color doesn't affect, on my PC?
+        style  => "histograms",
+    );
+    push @chart_datasets, $ds;
     $chart->plot2d(@chart_datasets);
     [200, "OK"];
 }
@@ -3585,7 +3534,9 @@ sub bencher {
         my @columns;
         for my $it0 (@$items) {
             my $it = {%$it0};
-            delete $it->{$_} for grep {/^_/} keys %$it;
+            for (grep {/^_/} keys %$it) {
+                delete $it->{$_} unless /^_succinct_name/;
+            }
             if (!@columns) {
                 push @columns, sort keys %$it;
             }
@@ -4112,7 +4063,7 @@ sub bencher {
                 Data::Clone::clone($parsed->{env_hashes});
         }
 
-        log_trace("Running benchmark with Benchmark::Dumb (precision=%g) ...", $precision);
+        log_trace("Running benchmark with %s (precision=%g) ...", $runner, $precision);
 
         my @columns        = ('seq'  , 'participant', 'dataset');
         my @column_aligns  = ('right', 'left'       , 'left');
