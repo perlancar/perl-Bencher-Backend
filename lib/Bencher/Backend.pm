@@ -1,9 +1,5 @@
+## no critic: Subroutines::ProhibitExplicitReturnUndef InputOutput::ProhibitInteractiveTest
 package Bencher::Backend;
-
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
 
 use 5.010001;
 use strict;
@@ -15,6 +11,12 @@ use List::MoreUtils qw(all);
 use List::Util qw(first);
 
 use Exporter qw(import);
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
 our @EXPORT_OK = qw(
                        bencher
                        format_result
@@ -426,7 +428,7 @@ sub _get_scenario {
             unshift @INC, $_ for @{ $pargs->{include_path} // [] };
             require $mp;
         }
-        no strict 'refs';
+        no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
         $scenario = ${"$m\::scenario"};
     } elsif (defined $pargs->{cpanmodules_module}) {
         require Acme::CPANModulesUtil::Bencher;
@@ -1190,7 +1192,7 @@ sub _gen_items {
                     }
                     $code_str .= q[die "Command failed (child error=$?, os error=$!)\\n" if $?];
                     $code_str .= "}";
-                    $code = eval $code_str;
+                    $code = eval $code_str; ## no critic: BuiltinFunctions::ProhibitStringyEval
                     die "BUG: Can't produce code for cmdline: $@ (code string is: $code_str)" if $@;
                 };
             } elsif ($p->{type} eq 'perl_code') {
@@ -1263,7 +1265,7 @@ sub _gen_items {
                     }
                     $code_str .= _fill_template($template, $template_vars, 'dmp') . " }";
                     log_debug("Item #%d: code=%s", $item_seq, $code_str);
-                    $code = eval $code_str;
+                    $code = eval $code_str; ## no critic: BuiltinFunctions::ProhibitStringyEval
                     return [400, "Item #$item_seq: code compile error: $@ (code: $code_str)"] if $@;
                 }
             } else {
@@ -3680,12 +3682,12 @@ sub bencher {
         $envres->[3]{'func.code_startup'}   = $code_startup;
         $envres->[3]{'func.module_versions'}{perl} = "$^V" if $return_meta;
         {
-            no strict 'refs';
+            no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
             $envres->[3]{'func.module_versions'}{__PACKAGE__} = ${__PACKAGE__.'::VERSION'} if $return_meta;
         }
 
         my $code_load = sub {
-            no strict 'refs';
+            no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
             my ($mod, $optional) = @_;
             log_trace("Loading module: %s", $mod);
             if ($optional) {
@@ -3773,7 +3775,7 @@ sub bencher {
                 # from _code_str
                 if (!$it->{_code}) {
                     if (defined $it->{_code_str}) {
-                        $it->{_code} = eval $it->{_code_str};
+                        $it->{_code} = eval $it->{_code_str}; ## no critic: BuiltinFunctions::ProhibitStringyEval
                         die "Can't compile _code_str '$it->{_code_str}': $@" if $@;
                     } else {
                         die "BUG: Item doesn't have _code or _code_str";
@@ -4024,7 +4026,7 @@ sub bencher {
                 $envres->[3]{'func.scenario_file_sha1sum'} = $digests->{sha1};
                 $envres->[3]{'func.scenario_file_sha256sum'} = $digests->{sha256};
             } elsif (my $mod = $args{scenario_module}) {
-                no strict 'refs';
+                no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
                 $mod = "Bencher::Scenario::$mod" unless $mod =~ /\ABencher::Scenario::/;
                 $envres->[3]{'func.scenario_module'} = $mod;
                 (my $mod_pm = "$mod.pm") =~ s!::!/!g;
@@ -4038,7 +4040,7 @@ sub bencher {
                 $envres->[3]{'func.module_versions'}{$mod} =
                     ${"$mod\::VERSION"};
             } elsif (my $mod0 = $args{cpanmodules_module}) {
-                no strict 'refs';
+                no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
                 my $mod = "Acme::CPANModules::$mod0";
                 $envres->[3]{'func.cpanmodules_module'} = $mod;
                 (my $mod_pm = "$mod.pm") =~ s!::!/!g;
@@ -4150,7 +4152,7 @@ sub bencher {
         } else {
             my $tres;
             my $doit = sub {
-                no strict 'refs';
+                no strict 'refs'; ## no critic: TestingAndDebugging::ProhibitNoStrict
                 $tres = &{"$runner\::_timethese_guts"}(
                     $precision,
                     {

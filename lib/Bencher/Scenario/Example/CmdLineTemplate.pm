@@ -1,5 +1,7 @@
 package Bencher::Scenario::Example::CmdLineTemplate;
 
+use strict;
+
 # AUTHORITY
 # DATE
 # DIST

@@ -1,11 +1,13 @@
 package Benchmark::Dumb::SimpleTime;
 
-# DATE
-# VERSION
-
 use strict;
 use warnings;
 use Time::HiRes qw(time);
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 sub _timethese_guts {
     my ($count, $subs, $silent) = @_;

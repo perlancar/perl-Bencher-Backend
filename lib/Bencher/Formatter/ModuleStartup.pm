@@ -1,10 +1,5 @@
 package Bencher::Formatter::ModuleStartup;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
@@ -18,6 +13,11 @@ with 'Bencher::Role::ResultMunger';
 
 use Bencher::Backend;
 use List::Util qw(first);
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 sub munge_result {
     my ($self, $envres) = @_;

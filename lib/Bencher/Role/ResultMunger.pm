@@ -1,10 +1,5 @@
 package Bencher::Role::ResultMunger;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010;
 use strict;
 use warnings;
@@ -12,6 +7,11 @@ use warnings;
 use Role::Tiny;
 
 requires 'munge_result';
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 1;
 # ABSTRACT: Result munger role

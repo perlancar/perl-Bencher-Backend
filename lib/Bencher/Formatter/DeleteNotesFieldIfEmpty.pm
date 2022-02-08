@@ -1,10 +1,5 @@
 package Bencher::Formatter::DeleteNotesFieldIfEmpty;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
@@ -15,6 +10,11 @@ use parent qw(Bencher::Formatter);
 use Role::Tiny::With;
 with 'Bencher::Role::FieldMunger';
 with 'Bencher::Role::ResultMunger';
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 sub munge_result {
     my ($self, $envres) = @_;
