@@ -2,3 +2,4 @@ Bencher-*
 .build
 *~
 nytprof*
+.DS_Store
