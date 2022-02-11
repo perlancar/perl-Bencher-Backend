@@ -1,15 +1,15 @@
 package Bencher::Role::FieldMunger;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010;
 use strict;
 use warnings;
 
 use Role::Tiny;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 sub add_field {
     my ($self, $envres, $name, $opts, $code) = @_;

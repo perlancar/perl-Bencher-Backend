@@ -1,5 +1,7 @@
 package Bencher::Scenario::Example;
 
+use strict;
+
 # AUTHORITY
 # DATE
 # DIST

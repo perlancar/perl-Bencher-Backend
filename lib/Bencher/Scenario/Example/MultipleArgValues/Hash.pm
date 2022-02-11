@@ -1,5 +1,7 @@
 package Bencher::Scenario::Example::MultipleArgValues::Hash;
 
+use strict;
+
 # AUTHORITY
 # DATE
 # DIST

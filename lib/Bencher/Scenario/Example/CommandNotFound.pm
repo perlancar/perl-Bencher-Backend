@@ -1,5 +1,7 @@
 package Bencher::Scenario::Example::CommandNotFound;
 
+use strict;
+
 # AUTHORITY
 # DATE
 # DIST

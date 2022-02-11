@@ -1,13 +1,13 @@
 package Bencher::Formatter;
 
+use 5.010001;
+use strict;
+use warnings;
+
 # AUTHORITY
 # DATE
 # DIST
 # VERSION
-
-use 5.010001;
-use strict;
-use warnings;
 
 sub new {
     my ($class, %args) = @_;

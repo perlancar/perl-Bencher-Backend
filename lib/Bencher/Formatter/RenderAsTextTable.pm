@@ -1,10 +1,5 @@
 package Bencher::Formatter::RenderAsTextTable;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.010001;
 use strict;
 use warnings;
@@ -16,6 +11,11 @@ use Perinci::Result::Format::Lite;
 
 use Role::Tiny::With;
 with 'Bencher::Role::ResultRenderer';
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
 
 sub render_result {
     my ($self, $envres) = @_;
