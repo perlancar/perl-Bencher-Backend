@@ -3272,6 +3272,7 @@ _
         render_as_benchmark_pm => {
             summary => 'Format result like Benchmark.pm',
             schema => 'true*',
+            cmdline_aliases => {B=>{}},
             tags => ['category:output'],
         },
         note => {
