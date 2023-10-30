@@ -2088,6 +2088,7 @@ $SPEC{format_result} = {
             'x.name.singular' => 'exclude_formatter',
             summary => 'Exclude Formatters specification',
             schema => ['array*', of=>'str*'],
+            pos => 3,
         },
         options => {
             'x.name.is_plural' => 1,
